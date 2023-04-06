@@ -20,6 +20,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from math import *
 
 class Game:
 
@@ -36,9 +37,14 @@ class Game:
         def get_options(self, opponent):
             return self.options[opponent]
 
-    def __init__(self, players, options, payoffs, fitness_mean, fitness_std, neighbourhoods, costs, board_size, immovable, proportions, fitness=None):
-        # TODO: add a parameter for the number of players of each type
-        self.players = [self.Player(player, option) for player, option in zip(players, options)] # list of players
+    def __init__(self, players, options, payoffs, fitness_mean, fitness_std, neighbourhoods, costs, board_size, immovable, proportions, population, fitness=None):
+        
+        self.players = [] # population of players
+        # create the players for the population
+        for player, option in zip(players, options):
+            for i in range(floor(proportions[player.type] * population)):
+                self.players.append(self.Player(player, option))
+
         self.payoffs = payoffs # dictionary of payoffs of player against different players
         self.n = board_size # size of the board
         self.num_players = len(self.players) # number of players
