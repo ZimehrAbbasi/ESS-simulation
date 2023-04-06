@@ -13,6 +13,7 @@
 #      n: number of players
 #      board: board of the game
 #      costs: dictionary of costs of player for existing in the game
+#      immovable: list of player types that cannot be moved
 #      fitness_distributions: list of fitness distributions of players in the game
 
 import numpy as np
@@ -34,13 +35,14 @@ class Game:
         def get_options(self, opponent):
             return self.options[opponent]
 
-    def __init__(self, players, options, payoffs, fitness_mean, fitness_std, neighbourhoods, costs, board_size, fitness=None):
+    def __init__(self, players, options, payoffs, fitness_mean, fitness_std, neighbourhoods, costs, board_size, immovable, fitness=None):
         self.players = [self.Player(player, option) for player, option in zip(players, options)] # list of players
         self.payoffs = payoffs # dictionary of payoffs of player against different players
         self.n = board_size # size of the board
         positions = set() # set of positions of players
         self.board = [[0 for i in range(self.n)] for j in range(self.n)] # board of the game
         self.costs = costs # dictionary of costs of player for existing in the game
+        self.immovable = set(immovable)
 
         # set fitness of players
         for player in self.players:
@@ -130,10 +132,13 @@ class Game:
                 player.fitness += player_payoff
                 opponent.fitness += opponent_payoff
 
-            # swap the positions of the player and the opponent
-            self.board[player.position[0]][player.position[1]] = opponent
-            self.board[opponent.position[0]][opponent.position[1]] = player
-            player.position, opponent.position = opponent.position, player.position
+            # swap the positions of the player and the opponent if they are not immovable else move the player to a random position within the neighbourhood
+            if player.type in self.immovable or opponent.type in self.immovable:
+                self.move_player_within_neighbourhood(player)
+            else:
+                self.board[player.position[0]][player.position[1]] = opponent
+                self.board[opponent.position[0]][opponent.position[1]] = player
+                player.position, opponent.position = opponent.position, player.position
 
             #TODO: how to handle if fitness is negative
 
