@@ -116,7 +116,7 @@ class Game:
             options = player.get_options(opponent.type)
             opponent_options = opponent.get_options(player.type)
 
-            # TODO: reinforced learning for both players?
+            # TODO: reinforced learning for both players (updating probability distribution of options)
             # TODO: play the game multiple times
             # play the game
             for g in range(games):
@@ -127,7 +127,8 @@ class Game:
                 # get the payoffs of the player and the opponent
                 player_payoff = payoff_matrix[player_option][opponent_option][0]
                 opponent_payoff = payoff_matrix[opponent_option][player_option][1]
-
+                
+                # TODO: handle case for multiple games in the simulation
                 # update the fitness of the player and the opponent
                 player.fitness += player_payoff
                 opponent.fitness += opponent_payoff
