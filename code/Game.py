@@ -10,7 +10,8 @@
 # Game: Class of a game
 #      players: list of players
 #      payoffs: dictionary of payoffs of player against different players
-#      n: number of players
+#      n: board size
+#      num_players: number of players
 #      board: board of the game
 #      costs: dictionary of costs of player for existing in the game
 #      immovable: list of player types that cannot be moved
@@ -39,6 +40,7 @@ class Game:
         self.players = [self.Player(player, option) for player, option in zip(players, options)] # list of players
         self.payoffs = payoffs # dictionary of payoffs of player against different players
         self.n = board_size # size of the board
+        self.num_players = len(self.players) # number of players
         positions = set() # set of positions of players
         self.board = [[0 for i in range(self.n)] for j in range(self.n)] # board of the game
         self.costs = costs # dictionary of costs of player for existing in the game
@@ -144,7 +146,7 @@ class Game:
             #TODO: how to handle if fitness is negative
 
             # subtract the cost of the player per n iterations
-            if (it + 1) % self.n == 0:
+            if (it + 1) % self.num_players == 0:
                 for player in self.players:
                     player.fitness -= self.costs[player.type]
 
