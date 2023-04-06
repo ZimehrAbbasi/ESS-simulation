@@ -36,7 +36,8 @@ class Game:
         def get_options(self, opponent):
             return self.options[opponent]
 
-    def __init__(self, players, options, payoffs, fitness_mean, fitness_std, neighbourhoods, costs, board_size, immovable, fitness=None):
+    def __init__(self, players, options, payoffs, fitness_mean, fitness_std, neighbourhoods, costs, board_size, immovable, proportions, fitness=None):
+        # TODO: add a parameter for the number of players of each type
         self.players = [self.Player(player, option) for player, option in zip(players, options)] # list of players
         self.payoffs = payoffs # dictionary of payoffs of player against different players
         self.n = board_size # size of the board
