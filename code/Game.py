@@ -48,7 +48,7 @@ class Game:
         self.payoffs = payoffs # dictionary of payoffs of player against different players
         self.n = board_size # size of the board
         self.num_players = len(self.players) # number of players
-        positions = set() # set of positions of players
+        self.positions = set() # set of positions of players
         self.board = [[0 for i in range(self.n)] for j in range(self.n)] # board of the game
         self.costs = costs # dictionary of costs of player for existing in the game
         self.immovable = set(immovable)
@@ -67,8 +67,8 @@ class Game:
         for player in self.players:
             while True:
                 player.position = (np.random.randint(0, self.n), np.random.randint(0, self.n))
-                if player.position not in positions:
-                    positions.add(player.position)
+                if player.position not in self.positions:
+                    self.positions.add(player.position)
                     self.board[player.position[0]][player.position[1]] = player
                     break
 
@@ -95,20 +95,18 @@ class Game:
     
     # move the player to a random position within the neighbourhood
     def move_player_within_neighbourhood(self, player):
-        # get the neighbourhood of the player
-        neighbourhood = []
-        for i in range(player.position[0] - player.neighbour_radius, player.position[0] + player.neighbour_radius + 1):
-            for j in range(player.position[1] - player.neighbour_radius, player.position[1] + player.neighbour_radius + 1):
-                if i >= 0 and i < self.n and j >= 0 and j < self.n:
-                    neighbourhood.append((i, j))
 
         # choose a random position from the neighbourhood
-        position = np.random.choice(neighbourhood)
-
-        # move the player to the position
-        self.board[player.position[0]][player.position[1]] = 0
-        self.board[position[0]][position[1]] = player
-        player.position = position
+        while True:
+            (posX, posY) = np.random.choice(range(player.position[0] - player.neighbour_radius, player.position[0] + player.neighbour_radius + 1)), np.random.choice(range(player.position[1] - player.neighbour_radius, player.position[1] + player.neighbour_radius + 1))
+            if posY >= 0 and posY < self.n and posX >= 0 and posX < self.n:
+                if (posX, posY) not in self.positions:
+                    self.positions.remove(player.position)
+                    self.board[player.position[0]][player.position[1]] = 0
+                    self.board[posX][posY] = player
+                    player.position = (posX, posY)
+                    self.positions.add(player.position)
+                    break
     
     # simulate the game for iter iterations
     def simulate(self, iter, games=1):
@@ -117,7 +115,7 @@ class Game:
             # play the game for each player
             for i, player in enumerate(self.players):
                 for j, opponent in enumerate(self.players):
-                    
+
                     # if the player is the same as the opponent or the player and the opponent are not neighbours, then continue
                     if i >= j or self.graph[i][j] == 0:
                         continue
