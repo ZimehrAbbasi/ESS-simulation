@@ -38,7 +38,7 @@ class Game:
             return self.options[opponent]
 
     def __init__(self, players, options, payoffs, fitness_mean, fitness_std, neighbourhoods, costs, board_size, immovable, proportions, population, fitness=None):
-        
+
         self.players = [] # population of players
         # create the players for the population
         for player, option in zip(players, options):
@@ -76,6 +76,19 @@ class Game:
         for player in self.players:
             player.neighbour_radius = np.random.normal(neighbourhoods[player.type], 1)
 
+        # set graph matrix of the game
+        self.graph = [[0 for i in range(self.num_players)] for j in range(self.num_players)]
+        for i in range(self.num_players):
+            for j in range(i + 1, self.num_players):
+                if self.distance(self.players[i], self.players[j]) <= self.players[i].neighbour_radius:
+                    self.graph[i][j] = 1
+                if self.distance(self.players[i], self.players[j]) <= self.players[j].neighbour_radius:
+                    self.graph[j][i] = 1
+
+
+    def distance(self, player1, player2):
+        return sqrt((player1.position[0] - player2.position[0]) ** 2 + (player1.position[1] - player2.position[1]) ** 2)
+
     # get the payoff matrix of the player against the opponent
     def get_payoff_matrix(self, player, opponent):
         return self.payoffs[player][opponent]
@@ -101,65 +114,56 @@ class Game:
     def simulate(self, iter, games=1):
 
         for it in range(iter):
-            # choose a player
-            player = np.random.choice(self.players)
+            # play the game for each player
+            for i, player in enumerate(self.players):
+                for j, opponent in enumerate(self.players):
+                    
+                    # if the player is the same as the opponent or the player and the opponent are not neighbours, then continue
+                    if i >= j or self.graph[i][j] == 0:
+                        continue
 
-            # check if there is anybody in the neighborhood
-            neighbours = []
-            for i in range(player.position[0] - player.neighbour_radius, player.position[0] + player.neighbour_radius + 1):
-                for j in range(player.position[1] - player.neighbour_radius, player.position[1] + player.neighbour_radius + 1):
-                    if i >= 0 and i < self.n and j >= 0 and j < self.n and self.board[i][j] != 0:
-                        neighbours.append(self.board[i][j])
+                    # get the payoff matrix of the player against the opponent
+                    payoff_matrix = self.get_payoff_matrix(player.type, opponent.type)
+                    
+                    # get the option of the player against the opponent and vice versa
+                    options = player.get_options(opponent.type)
+                    opponent_options = opponent.get_options(player.type)
 
-            # choose an opponent from the neighbourhood
-            if len(neighbours) > 0:
-                opponent = np.random.choice(neighbours)
-            else:
-                self.move_player_within_neighbourhood(player)
-                continue
+                    # TODO: reinforced learning for both players (updating probability distribution of options)
+                    # TODO: play the game multiple times
+                    # play the game
+                    for g in range(games):
+                        # choose the option of the player and the opponent
+                        player_option = np.random.choice(options.keys(), p=options.values())
+                        opponent_option = np.random.choice(opponent_options.keys(), p=opponent_options.values())
 
-            # get the payoff matrix of the player against the opponent
-            payoff_matrix = self.get_payoff_matrix(player.type, opponent.type)
-            
-            # get the option of the player against the opponent and vice versa
-            options = player.get_options(opponent.type)
-            opponent_options = opponent.get_options(player.type)
+                        # get the payoffs of the player and the opponent
+                        player_payoff = payoff_matrix[player_option][opponent_option][0]
+                        opponent_payoff = payoff_matrix[opponent_option][player_option][1]
+                        
+                        # TODO: handle case for multiple games in the simulation
+                        # update the fitness of the player and the opponent
+                        player.fitness += player_payoff
+                        opponent.fitness += opponent_payoff
 
-            # TODO: reinforced learning for both players (updating probability distribution of options)
-            # TODO: play the game multiple times
-            # play the game
-            for g in range(games):
-                # choose the option of the player and the opponent
-                player_option = np.random.choice(options.keys(), p=options.values())
-                opponent_option = np.random.choice(opponent_options.keys(), p=opponent_options.values())
+                    # swap the positions of the player and the opponent if they are not immovable else move the player to a random position within the neighbourhood
+                    if player.type in self.immovable or opponent.type in self.immovable:
+                        self.move_player_within_neighbourhood(player)
+                    else:
+                        self.board[player.position[0]][player.position[1]] = opponent
+                        self.board[opponent.position[0]][opponent.position[1]] = player
+                        player.position, opponent.position = opponent.position, player.position
 
-                # get the payoffs of the player and the opponent
-                player_payoff = payoff_matrix[player_option][opponent_option][0]
-                opponent_payoff = payoff_matrix[opponent_option][player_option][1]
-                
-                # TODO: handle case for multiple games in the simulation
-                # update the fitness of the player and the opponent
-                player.fitness += player_payoff
-                opponent.fitness += opponent_payoff
+                    #TODO: how to handle if fitness is negative
 
-            # swap the positions of the player and the opponent if they are not immovable else move the player to a random position within the neighbourhood
-            if player.type in self.immovable or opponent.type in self.immovable:
-                self.move_player_within_neighbourhood(player)
-            else:
-                self.board[player.position[0]][player.position[1]] = opponent
-                self.board[opponent.position[0]][opponent.position[1]] = player
-                player.position, opponent.position = opponent.position, player.position
+                    # subtract the cost of the player per n iterations
+                    if (it + 1) % self.num_players == 0:
+                        for player in self.players:
+                            player.fitness -= self.costs[player.type]
 
-            #TODO: how to handle if fitness is negative
-
-            # subtract the cost of the player per n iterations
-            if (it + 1) % self.num_players == 0:
-                for player in self.players:
-                    player.fitness -= self.costs[player.type]
-
-            # add the fitness distribution of the players to the fitness distribution
-            if (it + 1) % 100 == 0:
-                self.fitness_distributions.append([(player.fitness, player.type) for player in self.players])
+                    # add the fitness distribution of the players to the fitness distribution
+                    if (it + 1) % 100 == 0:
+                        self.fitness_distributions.append([(player.fitness, player.type) for player in self.players])
         
     # display the fitness distributions of the players
     def display_fitness_distributions(self):
