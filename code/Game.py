@@ -180,3 +180,14 @@ class Game:
         plt.legend()
         plt.show()
 
+# TODO: determine types of players
+# TODO: determine fitness distributions of players
+# TODO: determine neighbourhoods of players
+# TODO: determine costs of players
+# TODO: determine payoffs of players
+# TODO: determine evolution function
+# TODO: determine number of players
+# TODO: determine mutation function
+# TODO: determine immovable players
+# TODO: determine board size
+# TODO: determine to be played game between players 
