@@ -12,9 +12,11 @@
 #      payoffs: dictionary of payoffs of player against different players
 #      n: board size
 #      num_players: number of players
+#      positions: set of positions of players
 #      board: board of the game
 #      costs: dictionary of costs of player for existing in the game
 #      immovable: list of player types that cannot be moved
+#      evolution_function: function that determines the evolution of the game
 #      fitness_distributions: list of fitness distributions of players in the game
 
 import numpy as np
@@ -37,7 +39,7 @@ class Game:
         def get_options(self, opponent):
             return self.options[opponent]
 
-    def __init__(self, players, options, payoffs, fitness_mean, fitness_std, neighbourhoods, costs, board_size, immovable, proportions, population, fitness=None):
+    def __init__(self, players, options, payoffs, fitness_mean, fitness_std, neighbourhoods, costs, board_size, immovable, proportions, population, evolution_function, fitness=None):
 
         self.players = [] # population of players
         # create the players for the population
@@ -52,6 +54,7 @@ class Game:
         self.board = [[0 for i in range(self.n)] for j in range(self.n)] # board of the game
         self.costs = costs # dictionary of costs of player for existing in the game
         self.immovable = set(immovable)
+        self.evolution_function = evolution_function
 
         # set fitness of players
         for player in self.players:
@@ -162,6 +165,12 @@ class Game:
                     # add the fitness distribution of the players to the fitness distribution
                     if (it + 1) % 100 == 0:
                         self.fitness_distributions.append([(player.fitness, player.type) for player in self.players])
+
+            # evolve the players
+            self.evolve()
+
+    def evolve(self, *args):
+        self.players = self.evolution_function(args)
         
     # display the fitness distributions of the players
     def display_fitness_distributions(self):
