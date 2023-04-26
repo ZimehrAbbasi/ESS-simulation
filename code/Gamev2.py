@@ -21,7 +21,7 @@ class Game:
         self.d_rate_mean = 0.5
         self.d_rate_std = 0.1
         self.size_mean = 10
-        self.size_std = 50
+        self.size_std = 5
         self.strategy_mean = 0.5
         self.strategy_std = 0.3
 
@@ -39,7 +39,6 @@ class Game:
         pairs = []
         for i in range(n//2):
             pairs.append([left[i], right[i]])
-
         return pairs
     
     # initialize the game
@@ -53,13 +52,12 @@ class Game:
 
     def simulate(self):
         players = self.players
-        for i in range(100):
+        for i in range(1000):
             random.shuffle(players)
             pairs = self.disjointPairs(players)
             for pair in pairs:
                 payoff_player1 = self.payoff(pair[0], pair[1])
                 payoff_player2 = self.payoff(pair[1], pair[0])
-
                 if payoff_player1 > payoff_player2:
                     pair[1].strategy = pair[0].strategy
                 else:
@@ -84,7 +82,7 @@ class Game:
 if __name__ == "__main__":
 
     # create random graph
-    adjacency_matrix = np.random.randint(2, size=(100, 100))
+    adjacency_matrix = np.random.randint(2, size=(300, 300))
     game = Game(adjacency_matrix)
     game.run()
 
