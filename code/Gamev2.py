@@ -11,19 +11,29 @@ class Player:
         self.d_rate = 0
         self.size = 1
         self.strategy = [1, 0]
+        self.payoff = 0
+        self.new_strategy = None
+        self.new_payoff = 0
+        self.average_payoff = 0
+        self.asset_value = 0
+        self.liability_value = 0
 
 
 class Game:
 
-    def __init__(self, adjacency_matrix):
+    def __init__(self, adjacency_matrix, size = 100):
         self.adjacency_matrix = adjacency_matrix
         self.players = [Player(i) for i in range(len(adjacency_matrix))]
-        self.d_rate_mean = 0.5
-        self.d_rate_std = 0.1
+        # name to player dictionary
+        self.player_dict = {i: self.players[i] for i in range(len(adjacency_matrix))}
+        self.d_rate_mean = 0.3
+        self.d_rate_std = 0.2
         self.size_mean = 10
         self.size_std = 5
         self.strategy_mean = 0.5
         self.strategy_std = 0.3
+        self.libailities_matrix = np.zeros((size, size))
+        self.asset_matrix = np.zeros((size, size))
 
     # calculate payoffs for two players
     def payoff(self, player1, player2):
@@ -43,14 +53,15 @@ class Game:
         p3 = (1 - x_A) * x_B * I_B
         p4 = (1 - x_A) * (1 - x_B) * 0.5
         return p1 + p2 + p3 + p4
+    
+    def game_payoff(self, player1, player2):
+        return self.payoff(player1, player2) - self.payoff(player2, player1)
 
     # algorithm to return a list of all disjoint pairs of numbers upto n
     def disjointPairs(self, players):
         n = len(players)
         left = players[0:n//2]
         right = players[n//2:]
-        random.shuffle(left)
-        random.shuffle(right)
         pairs = []
         for i in range(n//2):
             pairs.append([left[i], right[i]])
@@ -60,23 +71,84 @@ class Game:
     def initialize(self):
         for i, player in enumerate(self.players):
             self.players[i].d_rate = np.random.normal(self.d_rate_mean, self.d_rate_std)
+            if self.players[i].d_rate < 0:
+                self.players[i].d_rate = 0
             self.players[i].size = np.random.normal(self.size_mean, self.size_std)
             # uniformly random value between 0 and 1
             val = np.random.uniform(low=0.0, high=1.0, size=1)
             self.players[i].strategy = [val, 1 - val]
 
-    def simulate(self):
+        # for each bank in the adjacency matrix, iterate through its neighbours and sum the total size
+        for i in range(len(self.adjacency_matrix)):
+            for j in range(len(self.adjacency_matrix)):
+                self.adjacency_matrix[i][i] = 0
+                if self.adjacency_matrix[i][j] == 1:
+                    self.libailities_matrix[i][j] += self.players[j].size
+            
+            # normalize the libailities matrix row i
+            for j in range(len(self.adjacency_matrix)):
+                if self.libailities_matrix[i][j] != 0:
+                    self.libailities_matrix[i][j] /= np.sum(self.libailities_matrix[i])
+                    self.libailities_matrix[i][j] *= self.players[i].size * self.players[i].d_rate
+
+        self.asset_matrix = self.libailities_matrix
+        self.libailities_matrix = np.transpose(self.libailities_matrix)
+
+        # get total asset and liability values for each bank
+        for i in range(len(self.players)):
+            self.players[i].asset_value = np.sum(self.asset_matrix[i])
+            self.players[i].liability_value = np.sum(self.libailities_matrix[i])
+            self.players[i].size = self.players[i].asset_value - self.players[i].liability_value
+
+    def simulate(self, epochs=1000):
         players = self.players
-        for i in range(1000):
+
+        # TODO: incorporate banks going bankrupt
+        # TODO: incorporate banks merging?
+        # TODO: incorporate assets per bank
+        # TODO: incorporate random shocks to asset values
+
+        for i in range(epochs):
             random.shuffle(players)
-            pairs = self.disjointPairs(players)
-            for pair in pairs:
-                payoff_player1 = self.payoff(pair[0], pair[1])
-                payoff_player2 = self.payoff(pair[1], pair[0])
-                if payoff_player1 > payoff_player2:
-                    pair[1].strategy = pair[0].strategy
-                else:
-                    pair[0].strategy = pair[1].strategy
+
+            # play mutliple rounds
+            for j in range(10):
+                pairs = self.disjointPairs(players)
+                for pair in pairs:
+                    payoff_player1 = self.game_payoff(pair[0], pair[1])
+                    payoff_player2 = self.game_payoff(pair[1], pair[0])
+                    pair[0].payoff += payoff_player1
+                    pair[1].payoff += payoff_player2
+
+                    # update average payoffs per player
+                    pair[0].average_payoff += payoff_player1
+                    pair[1].average_payoff += payoff_player2
+
+            # update strategies
+            for player in players:
+                # go through adjacent players
+                maximum_payoff = player.payoff
+                new_strategy = player.strategy
+                for i, adj in enumerate(self.adjacency_matrix[player.name]):
+                    if adj == 1:
+                        maximum_payoff = max(maximum_payoff, players[i].payoff)
+                        if maximum_payoff == players[i].payoff:
+                            new_strategy = players[i].strategy
+
+                player.new_payoff = maximum_payoff
+                player.new_strategy = new_strategy
+
+            # update strategies and incorporate payoffs into size
+            for player in players:
+                player.strategy = player.new_strategy
+                player.payoff = player.new_payoff
+                player.size += player.payoff
+                player.new_strategy = None
+                player.new_payoff = 0
+
+        # update average payoffs
+        for player in players:
+            player.average_payoff /= (epochs * 10)
 
     def displayStrategy(self):
         x = []
@@ -88,17 +160,34 @@ class Game:
         plt.scatter(x, y)
         plt.show()
 
+    def displaySize(self):
+        x = []
+        y = []
+        for player in self.players:
+            x.append(player.size)
+            y.append(player.average_payoff)
+
+        plt.scatter(x, y)
+        plt.show()
+
     def run(self):
         self.initialize()
         self.displayStrategy()
         self.simulate()
         self.displayStrategy()
+        self.displaySize()
 
 if __name__ == "__main__":
 
+    # TODO: create liabilities matrix based on proportion of bank size
+    
+    size = 5
     # create random graph
-    adjacency_matrix = np.random.randint(2, size=(300, 300))
-    game = Game(adjacency_matrix)
+    adjacency_matrix = np.random.randint(2, size=(size, size))
+    
+    game = Game(adjacency_matrix, size)
+    game.initialize()
+    quit()
     game.run()
 
 
