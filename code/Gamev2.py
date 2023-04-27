@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+from Graph import Graph
 
 class Player:
 
@@ -26,14 +27,15 @@ class Game:
         self.players = [Player(i) for i in range(len(adjacency_matrix))]
         # name to player dictionary
         self.player_dict = {i: self.players[i] for i in range(len(adjacency_matrix))}
-        self.d_rate_mean = 0.3
-        self.d_rate_std = 0.2
+        self.d_rate_mean = 0.2
+        self.d_rate_std = 0.1
         self.size_mean = 10
         self.size_std = 5
         self.strategy_mean = 0.5
         self.strategy_std = 0.3
         self.libailities_matrix = np.zeros((size, size))
         self.asset_matrix = np.zeros((size, size))
+        self.graph = None
 
     # calculate payoffs for two players
     def payoff(self, player1, player2):
@@ -77,28 +79,16 @@ class Game:
             # uniformly random value between 0 and 1
             val = np.random.uniform(low=0.0, high=1.0, size=1)
             self.players[i].strategy = [val, 1 - val]
+            self.adjacency_matrix[i][i] = 0
 
+        self.graph = Graph(self.adjacency_matrix)
         # for each bank in the adjacency matrix, iterate through its neighbours and sum the total size
         for i in range(len(self.adjacency_matrix)):
-            for j in range(len(self.adjacency_matrix)):
-                self.adjacency_matrix[i][i] = 0
-                if self.adjacency_matrix[i][j] == 1:
-                    self.libailities_matrix[i][j] += self.players[j].size
-            
-            # normalize the libailities matrix row i
-            for j in range(len(self.adjacency_matrix)):
-                if self.libailities_matrix[i][j] != 0:
-                    self.libailities_matrix[i][j] /= np.sum(self.libailities_matrix[i])
-                    self.libailities_matrix[i][j] *= self.players[i].size * self.players[i].d_rate
-
-        self.asset_matrix = self.libailities_matrix
-        self.libailities_matrix = np.transpose(self.libailities_matrix)
-
-        # get total asset and liability values for each bank
-        for i in range(len(self.players)):
-            self.players[i].asset_value = np.sum(self.asset_matrix[i])
-            self.players[i].liability_value = np.sum(self.libailities_matrix[i])
-            self.players[i].size = self.players[i].asset_value - self.players[i].liability_value
+            # invest in neighbouring banks
+            neighbours = self.graph.getNeighbours(i)
+            investment = self.players[i].d_rate * self.players[i].size
+            for neighbour in neighbours:
+                pass
 
     def simulate(self, epochs=1000):
         players = self.players
@@ -108,7 +98,7 @@ class Game:
         # TODO: incorporate assets per bank
         # TODO: incorporate random shocks to asset values
 
-        for i in range(epochs):
+        for k in range(epochs):
             random.shuffle(players)
 
             # play mutliple rounds
@@ -146,6 +136,9 @@ class Game:
                 player.new_strategy = None
                 player.new_payoff = 0
 
+            if k % 50 == 0:
+                print("Epoch: ", k)
+
         # update average payoffs
         for player in players:
             player.average_payoff /= (epochs * 10)
@@ -181,13 +174,11 @@ if __name__ == "__main__":
 
     # TODO: create liabilities matrix based on proportion of bank size
     
-    size = 5
+    size = 300
     # create random graph
     adjacency_matrix = np.random.randint(2, size=(size, size))
     
     game = Game(adjacency_matrix, size)
-    game.initialize()
-    quit()
     game.run()
 
 
