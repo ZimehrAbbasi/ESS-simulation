@@ -27,7 +27,22 @@ class Game:
 
     # calculate payoffs for two players
     def payoff(self, player1, player2):
-        return (player1.d_rate * player2.size * player2.strategy[0] - player2.d_rate * player1.size * player1.strategy[0]) / (player1.d_rate * player2.size * player2.strategy[0] + player2.d_rate * player1.size * player1.strategy[0])
+
+        # player 1
+        x_A = player1.strategy[0]
+        E_A = player1.size
+        I_A = player1.d_rate
+
+        # player 2
+        x_B = player2.strategy[0]
+        E_B = player2.size
+        I_B = player2.d_rate
+
+        p1 = x_A * x_B * (1 - abs(x_A - x_B)) * (1 - abs(I_A - I_B))
+        p2 = x_A * (1 - x_B) * I_A
+        p3 = (1 - x_A) * x_B * I_B
+        p4 = (1 - x_A) * (1 - x_B) * 0.5
+        return p1 + p2 + p3 + p4
 
     # algorithm to return a list of all disjoint pairs of numbers upto n
     def disjointPairs(self, players):
