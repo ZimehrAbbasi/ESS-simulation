@@ -85,7 +85,7 @@ class Game:
         # for each bank in the adjacency matrix, iterate through its neighbours and sum the total size
         for i in range(len(self.adjacency_matrix)):
             # invest in neighbouring banks
-            neighbours = self.graph.getNeighbours(i)
+            neighbours = self.graph.getNeighbors(i)
             investment = self.players[i].d_rate * self.players[i].size
             for neighbour in neighbours:
                 pass

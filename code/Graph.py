@@ -25,7 +25,7 @@ class Graph:
         for i in range(len(adjacency_matrix)):
             for j in range(len(adjacency_matrix)):
                 if adjacency_matrix[i][j] == 1:
-                    self.adjacency_dict[i].append(self.player_dict[j])
+                    self.adjacency_dict[self.player_dict[i]].append(self.player_dict[j])
 
     def getNeighbors(self, player):
         return self.adjacency_dict[self.player_dict[player]]
