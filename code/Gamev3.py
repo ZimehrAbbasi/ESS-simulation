@@ -51,9 +51,9 @@ class Game:
             if strat:
                 break
             
-            if np.random.uniform(0, 1) < 0.01:
+            if np.random.uniform(0, 1) < 1/self.num_rounds:
                 self.randomDevalue()
-            if np.random.uniform(0, 1) < 0.01:
+            if np.random.uniform(0, 1) < 1/self.num_rounds:
                 self.devalueHighest()
 
         # Print the results
@@ -203,7 +203,7 @@ class Game:
 if __name__ == "__main__":
 
     # Initialize assets
-    assets = [Asset(0.1, 2, 1, 4, 0.4), Asset(0.1, 2, 1, 0, 4)]
+    assets = [Asset(0.1, 2, 1, 4, 1), Asset(0.1, 2, 1, 0, 4)]
 
     # Initialize strategies
     strategies = [[1, 0], [0, 1]]
