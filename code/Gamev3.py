@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 class Bank:
     def __init__(self, name, strategy, asset_value, liabilities):
@@ -16,6 +17,7 @@ class Asset:
         self.r = r
         self.l = l
         self.n = n
+        self.n_new = n
         self.volatility = volatility
 
     def logistic(self, x):
@@ -35,11 +37,12 @@ class Game:
         self.asset_std = asset_std
         self.liabilities_mean = liabilities_mean
         self.liabilities_std = liabilities_std
+        self.last = 0
 
     def run(self):
 
         # Initialize the game
-        self.initialize()
+        self.initialize(self.num_banks, self.strategies, self.num_strategies)
         strat = None
 
         # Run the game
@@ -47,23 +50,46 @@ class Game:
             strat = self.run_round()
             if strat:
                 break
-        
-        print(strat)
+            
+            if np.random.uniform(0, 1) < 0.01:
+                self.randomDevalue()
+            if np.random.uniform(0, 1) < 0.01:
+                self.devalueHighest()
 
         # Print the results
         self.print_results()
 
-    def initialize(self):
+    def revalue(self):
+        for asset in self.assets:
+            asset.n = asset.n_new
 
-        i = 0
-        while i < self.num_banks:
+    def devalueHighest(self):
+        assets = [asset.n for asset in self.assets]
+        max_index = np.argmax(assets)
+        self.assets[max_index].n = np.random.normal(-50, self.assets[max_index].volatility, 1)[0]
+
+    def randomDevalue(self):
+        assets = [asset.volatility for asset in self.assets]
+        stockBaseReturnRates = np.array(assets).flatten()
+        total = np.sum(stockBaseReturnRates)
+        stockBaseReturnRates = stockBaseReturnRates / total
+        stockToDevalue = np.random.choice([i for i in range(self.num_assets)], 1, p=stockBaseReturnRates)
+        asset = self.assets[stockToDevalue[0]]
+        asset.n = np.random.normal(-50, asset.volatility, 1)[0]
+
+    def initialize(self, n, strategies, num_strategies):
+
+        i = self.last
+        while i < n + self.last:
             assets = np.random.lognormal(self.asset_mean, self.asset_std)
             liability = np.random.lognormal(self.liabilities_mean, self.liabilities_std)
 
             if assets > liability:
-                strategy = np.random.randint(0, self.num_strategies)
-                self.banks.append(Bank(i, self.strategies[strategy], assets, liability))
+                strategy = np.random.randint(0, num_strategies)
+                self.banks.append(Bank(i, strategies[strategy], assets, liability))
                 i += 1
+
+        self.last = i
 
     def f(self, bank1, bank2, asset, bank1_d, bank2_d):
         return np.random.normal(asset.logistic(bank1.asset_value * bank1_d + bank2.asset_value * bank2_d), asset.volatility, 1)
@@ -72,22 +98,25 @@ class Game:
 
         # get index of maximum strategy
         max_asset_index = np.argmax([asset.n for asset in self.assets])
-        
         dd = 0
         for asset in self.assets:
-            dd += bank1.asset_value/self.num_assets * self.f(bank1, bank2, asset, 1/self.num_assets, 1/self.num_assets)
+            return_rate = self.f(bank1, bank2, asset, 1/self.num_assets, 1/self.num_assets) / 100
+            dd += bank1.asset_value/self.num_assets * return_rate
 
         dnd = 0
         for i, asset in enumerate(self.assets):
-            dnd += bank1.asset_value/self.num_assets * self.f(bank1, bank2, asset, 1/self.num_assets, i == max_asset_index)
+            return_rate = self.f(bank1, bank2, asset, 1/self.num_assets, i == max_asset_index) / 100
+            dnd += bank1.asset_value/self.num_assets * return_rate
 
         ndd = 0
         for i, asset in enumerate(self.assets):
-            ndd += bank1.asset_value * (i == max_asset_index) * self.f(bank1, bank2, asset, i == max_asset_index, 1/self.num_assets)
+            return_rate = self.f(bank1, bank2, asset, i == max_asset_index, 1/self.num_assets) / 100
+            ndd += bank1.asset_value * (i == max_asset_index) * return_rate
 
         ndnd = 0
         for i, asset in enumerate(self.assets):
-            ndnd += bank1.asset_value * (i == max_asset_index) * self.f(bank1, bank2, asset, i == max_asset_index, i == max_asset_index)
+            return_rate = self.f(bank1, bank2, asset, i == max_asset_index, i == max_asset_index) / 100
+            ndnd += bank1.asset_value * (i == max_asset_index) * return_rate
 
         # create 2 * 2 matrix of payoffs
         payoff_matrix = np.array([[dd, dnd], [ndd, ndnd]])
@@ -124,46 +153,63 @@ class Game:
             pair[0].new_asset_value += payoff_player1
             pair[1].new_asset_value += payoff_player2
 
-        for bank in self.banks:
+        popped = 0
+        for i, bank in enumerate(self.banks):
             if bank.new_asset_value <= bank.liabilities:
-                bank.default = True
+                self.banks.pop(i)
+                popped += 1
+            else:
+                bank.default = False
         
         strategies = []
         for bank in self.banks:
-            if not bank.default:
-                strategies.append(bank.strategy)
-
-        if len(strategies) == 1:
-            return strategies[0]
+            strategies.append(bank.strategy)
 
         for bank in self.banks:
-            if bank.default:
-                i = np.random.randint(0, len(strategies))
-                bank.strategy = strategies[i]
-
+            i = np.random.randint(0, len(strategies))
+            bank.strategy = strategies[i]
+            
             bank.new_asset_value = bank.asset_value
 
+        self.initialize(popped, strategies, self.num_strategies)
+
     def print_results(self):
-        
+        strat = []
         for bank in self.banks:
-            print("Bank: " + str(bank.name))
-            print("Strategy: " + str(bank.strategy))
-            print("Asset Value: " + str(bank.asset_value))
-            print("Liabilities: " + str(bank.liabilities))
-            print("Default: " + str(bank.default))
-            print()
+            strat.append(int(bank.strategy[0] == 1))
+  
+        fig, ax = plt.subplots(1, 1)
+        ax.hist(strat, bins=2)
+        
+        ax.set_title("Frequency of strategies")
+        
+        ax.set_xlabel('Strategy')
+        ax.set_ylabel('Frequency')
+
+        # remove x-ticks
+        ax.set_xticks([])
+        
+        rects = ax.patches
+        labels = ["Highest return rate", "Diversify"]
+        
+        for rect, label in zip(rects, labels):
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, height+0.01, label,
+                    ha='center', va='bottom')
+        
+        plt.show()
 
 
 if __name__ == "__main__":
 
     # Initialize assets
-    assets = [Asset(0.1, 2, 1, 5, 4), Asset(0.1, 2, 1, 10, 12)]
+    assets = [Asset(0.1, 2, 1, 4, 0.4), Asset(0.1, 2, 1, 0, 4)]
 
     # Initialize strategies
-    strategies = [[0.5, 0.5], [1, 0], [0, 1]]
+    strategies = [[1, 0], [0, 1]]
 
     # Initialize game
-    game = Game(100, 2, 100, assets, strategies, 10, 1, 10, 1)
+    game = Game(100, 2, 500, assets, strategies, 10, 1, 10, 1)
 
     # Run game
     game.run()
