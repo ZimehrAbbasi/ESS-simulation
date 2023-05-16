@@ -92,9 +92,11 @@ class Game:
 
         # Initialize the game
         self.initialize(self.num_banks, None, self.num_strategies)
+        print("Game initialization successful.")
         strat = None
 
         # Run the game
+        print("Running the Evolutionary Game...")
         for i in range(self.num_rounds):
             strat = self.run_round()
             if strat:
@@ -105,8 +107,14 @@ class Game:
             if np.random.uniform(0, 1) < 1/self.num_rounds:
                 self.devalueHighest()
 
+            if i % 100 == 0:
+                print("Number of rounds played: ", i)
+
+        print("Game finished.")
+        print("Displaying results...")
         # Print the results
         self.print_results()
+        print("Simulation finished.")
 
     # revalue an asset
     def revalue(self):
@@ -131,6 +139,8 @@ class Game:
 
     # initialize the game
     def initialize(self, n, strategies, num_strategies):
+
+        print("Initializing the game...")
 
         i = self.last
         while i < n + self.last:
@@ -292,7 +302,7 @@ if __name__ == "__main__":
     assets = [Asset(0.1, 2, 1, 4, 1), Asset(0.1, 2, 1, 0, 4)]
 
     # Initialize game
-    game = Game(100, 2, 500, assets, 10, 1, 10, 1)
+    game = Game(300, 2, 500, assets, 10, 1, 10, 1)
 
     # Run game
     game.run()
