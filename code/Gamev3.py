@@ -92,22 +92,31 @@ class Game:
                 self.strategies[i] = self.strategies[i] / np.sum(self.strategies[i])
         self.num_strategies = len(self.strategies)
 
-    def run(self):
+    def run(self, epoch=25):
+        strategy_distribution = np.zeros(self.num_strategies)
+        for i in range(epoch):
+            print("Epoch", i)
+            strategy_distribution += self.epoch()/epoch
+
+        print("Game simulation finished.")
+        self.print_results(strategy_distribution)
+
+    def epoch(self):
 
         # Initialize the game
-        print("Initializing the game...")
+        print("Initializing the game for this epoch...")
         self.initialize(self.num_banks, None, self.num_strategies)
         print("Game initialization successful.")
-        strat = None
+
+        # Initialize strategy distribution
+        strat = np.zeros(self.num_strategies)
 
         # Run the game
         print("Running the Evolutionary Game...")
         start_time = time.time()
         average_time = 0
         for i in range(self.num_rounds):
-            strat = self.run_round()
-            if strat:
-                break
+            self.run_round()
             
             if np.random.uniform(0, 1) < 1/self.num_rounds:
                 self.randomDevalue()
@@ -121,12 +130,18 @@ class Game:
                 remaining = average_time * (self.num_rounds - i)
                 print("\tEstimated time remaining:", round(remaining, 4), "seconds")
 
+            for bank in self.banks:
+                # convert all strategies to np arrays of type float
+                bank.last_strategy = np.array(bank.last_strategy, dtype=float)
+                for i, strategy in enumerate(self.strategies):
+                    # check if 2 np arrays are equal
+                    if np.array_equal(bank.last_strategy, strategy):
+                        strat[i] += 1/self.num_rounds
+                        break
 
-        print("Game finished.")
-        print("Displaying results...")
-        # Print the results
-        self.print_results()
-        print("Simulation finished.")
+        print("Evolutionary Game finished for this epoch.")
+
+        return strat
 
     # revalue an asset
     def revalue(self):
@@ -306,19 +321,7 @@ class Game:
         # initialize new banks
         self.initialize(popped, strategies, len(strategies))
 
-    def print_results(self):
-        
-        # for each bank, check which strategy they are using from self.strategies
-        strat = [0] * self.num_strategies
-
-        for bank in self.banks:
-            # convert all strategies to np arrays of type float
-            bank.last_strategy = np.array(bank.last_strategy, dtype=float)
-            for i, strategy in enumerate(self.strategies):
-                # check if 2 np arrays are equal
-                if np.array_equal(bank.last_strategy, strategy):
-                    strat[i] += 1
-                    break
+    def print_results(self, strat):
   
         plt.bar(np.array([i for i in range(self.num_strategies)]), np.array(strat), align='center', color='blue')
         plt.ylabel('Strategies')
@@ -326,7 +329,6 @@ class Game:
         plt.title('Strategy Abundance')
         # x labels
         plt.xticks(np.array([i for i in range(self.num_strategies)]), ('1', '2', '3', '4', '5', '6', '7', '8', '9'))
-
         plt.show()
 
 
@@ -347,7 +349,7 @@ if __name__ == "__main__":
         assets.append(Asset(0.1, 2, 1, asset_array[i][0] * 100, asset_array[i][1] * 100))
 
     # Initialize game
-    game = Game(300, num_assets, 500, assets, 7.00306, 0.69115, 4.60517, 0.92103)
+    game = Game(50, num_assets, 50, assets, 7.00306, 0.69115, 4.60517, 0.92103)
 
     # Run game
-    game.run()
+    game.run(3)
