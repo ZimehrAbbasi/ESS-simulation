@@ -91,6 +91,7 @@ class Game:
     def run(self):
 
         # Initialize the game
+        print("Initializing the game...")
         self.initialize(self.num_banks, None, self.num_strategies)
         print("Game initialization successful.")
         strat = None
@@ -139,8 +140,6 @@ class Game:
 
     # initialize the game
     def initialize(self, n, strategies, num_strategies):
-
-        print("Initializing the game...")
 
         i = self.last
         while i < n + self.last:
