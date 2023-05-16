@@ -81,8 +81,11 @@ class Game:
         strat8 = np.array([1 if i in lowest_quartile else 0 for i in range(self.num_assets)])
         strat8 = strat8 / np.sum(strat8)
 
+        # 9. random strategy
+        strat9 = np.random.uniform(0, 1, self.num_assets)
+
         # create a list of strategies
-        self.strategies = [strat1, strat2, strat3, strat4, strat5, strat6, strat7, strat8]
+        self.strategies = [strat1, strat2, strat3, strat4, strat5, strat6, strat7, strat8, strat9]
         for i, strat in enumerate(self.strategies):
             if np.isnan(strat).any() or np.sum(strat) != 1:
                 self.strategies[i] = np.random.uniform(0, 1, self.num_assets)
@@ -170,7 +173,18 @@ class Game:
                 i += 1
 
         self.last = i
-    
+
+    def choose_strategy(self, i, strategy):
+        
+        # joker (random)
+        if i == 8:
+            j = np.random.randint(0, self.num_strategies)
+            while j != 8:
+                j = np.random.randint(0, self.num_strategies)
+            return self.strategies[j]
+        
+        return strategy
+        
     # logisitic function for the bank payoff
     def f(self, bank1, bank2, asset, bank1_d, bank2_d):
         return np.random.normal(asset.logistic(bank1.asset_value * bank1_d + bank2.asset_value * bank2_d), asset.volatility, 1)
@@ -222,6 +236,8 @@ class Game:
         # iterate through the strategies
         for i, strat1 in enumerate(self.strategies):
             for j, strat2 in enumerate(self.strategies):
+                strat1 = self.choose_strategy(i, strat1)
+                strat2 = self.choose_strategy(j, strat2)
                 for k, asset in enumerate(self.assets):
                     return_rate = self.f(bank1, bank2, asset, strat1[k], strat2[k]) / 100
                     payoffs[i, j] += bank1.asset_value * strat1[k] * return_rate
@@ -308,6 +324,9 @@ class Game:
         plt.ylabel('Strategies')
         plt.xlabel('Abundance of Strategies')
         plt.title('Strategy Abundance')
+        # x labels
+        plt.xticks(np.array([i for i in range(self.num_strategies)]), ('1', '2', '3', '4', '5', '6', '7', '8', '9'))
+
         plt.show()
 
 
