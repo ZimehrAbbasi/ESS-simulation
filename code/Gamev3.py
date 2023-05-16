@@ -222,9 +222,9 @@ class Game:
         # iterate through the strategies
         for i, strat1 in enumerate(self.strategies):
             for j, strat2 in enumerate(self.strategies):
-                for i, asset in enumerate(self.assets):
-                    return_rate = self.f(bank1, bank2, asset, strat1[i], strat2[i]) / 100
-                    payoffs[i, j] += bank1.asset_value * strat1[i] * return_rate
+                for k, asset in enumerate(self.assets):
+                    return_rate = self.f(bank1, bank2, asset, strat1[k], strat2[k]) / 100
+                    payoffs[i, j] += bank1.asset_value * strat1[k] * return_rate
 
         # create probability distribution from strategy
         prob_dist_1 = np.array(bank1.strategy)
