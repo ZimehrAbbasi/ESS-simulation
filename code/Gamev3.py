@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 class Bank:
     def __init__(self, name, strategy, asset_value, liabilities):
@@ -98,6 +99,8 @@ class Game:
 
         # Run the game
         print("Running the Evolutionary Game...")
+        start_time = time.time()
+        average_time = 0
         for i in range(self.num_rounds):
             strat = self.run_round()
             if strat:
@@ -109,7 +112,12 @@ class Game:
                 self.devalueHighest()
 
             if i % 100 == 0:
-                print("Number of rounds played: ", i)
+                print("Round number", i)
+                print("\tTime elapsed:", round(time.time() - start_time, 4), "seconds")
+                average_time = (time.time() - start_time) / (i + 1)
+                remaining = average_time * (self.num_rounds - i)
+                print("\tEstimated time remaining:", round(remaining, 4), "seconds")
+
 
         print("Game finished.")
         print("Displaying results...")
@@ -244,10 +252,14 @@ class Game:
     
     # run a round of the game
     def run_round(self):
-
+        
+        # shuffle the banks
         np.random.shuffle(self.banks)
         
+        # create disjoint pairs
         pairs = self.disjointPairs(self.banks)
+
+        # play a round of the game
         for pair in pairs:
             payoff_player1 = self.playOff(pair[0], pair[1])
             payoff_player2 = self.playOff(pair[1], pair[0])
@@ -255,6 +267,7 @@ class Game:
             pair[0].new_asset_value += payoff_player1
             pair[1].new_asset_value += payoff_player2
 
+        # check for defaults
         popped = 0
         for i, bank in enumerate(self.banks):
             if bank.new_asset_value <= bank.liabilities:
@@ -263,15 +276,18 @@ class Game:
             else:
                 bank.default = False
         
+        # check dominant strategies
         strategies = []
         for bank in self.banks:
             strategies.append(bank.strategy)
 
+        # update the strategies
         for bank in self.banks:
             i = np.random.randint(0, len(strategies))
             bank.strategy = strategies[i]
             bank.new_asset_value = bank.asset_value
 
+        # initialize new banks
         self.initialize(popped, strategies, len(strategies))
 
     def print_results(self):
@@ -297,11 +313,22 @@ class Game:
 
 if __name__ == "__main__":
 
+    # Set the random seed for reproducibility (optional)
+    np.random.seed(42)
+
     # Initialize assets
-    assets = [Asset(0.1, 2, 1, 4, 1), Asset(0.1, 2, 1, 0, 4)]
+
+    # Manually created external assets with mean and standard deviation
+    asset_array = np.array([[0.02, 0.01], [0.04, 0.04], [0.06, 0.08], [0.08, 0.12], [0.1, 0.16]])
+
+    # Create asset objects
+    assets = []
+    num_assets = 5
+    for i in range(num_assets):
+        assets.append(Asset(0.1, 2, 1, asset_array[i][0] * 100, asset_array[i][1] * 100))
 
     # Initialize game
-    game = Game(300, 2, 500, assets, 10, 1, 10, 1)
+    game = Game(300, num_assets, 500, assets, 7.00306, 0.69115, 4.60517, 0.92103)
 
     # Run game
     game.run()
