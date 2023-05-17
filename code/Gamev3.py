@@ -2,43 +2,46 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
+# Class definitions
+
+# Bank class
 class Bank:
     def __init__(self, name, strategy, asset_value, liabilities):
-        self.name = name
-        self.strategy = strategy
-        self.asset_value = asset_value
-        self.liabilities = liabilities
-        self.new_asset_value = asset_value
-        self.default = False
-        self.last_strategy = None
+        self.name = name # name of the bank
+        self.strategy = strategy # strategy of the bank
+        self.asset_value = asset_value # value of the assets
+        self.liabilities = liabilities # value of the liabilities
+        self.new_asset_value = asset_value # value of the assets after the round
+        self.default = False # whether the bank has defaulted
+        self.last_strategy = None # last strategy of the bank
 
 class Asset:
 
     def __init__(self, k, r, l, n, volatility):
-        self.k = k
+        self.k = k # growth rate
         self.r = r
-        self.l = l
-        self.n = n
-        self.n_new = n
+        self.l = l # carrying capacity
+        self.n = n # return rate
+        self.n_new = n # return rate after the round
         self.volatility = volatility
 
     def logistic(self, x):
-        return self.r * (self.l/(1 + np.exp(-self.k*x)) - 0.5) + self.n
+        return self.r * (self.l/(1 + np.exp(-self.k*x)) - 0.5) + self.n # logistic function
 
 class Game:
 
     def __init__(self, n, m, num_rounds, assets, asset_mean, asset_std, liabilities_mean, liabilities_std):
-        self.banks = []
-        self.num_rounds = num_rounds
-        self.num_banks = n
-        self.num_assets = m
-        self.assets = assets
+        self.banks = []  # list of banks
+        self.num_rounds = num_rounds # number of rounds
+        self.num_banks = n # number of banks
+        self.num_assets = m # number of assets
+        self.assets = assets # list of assets
         # sort assets by return rate
-        self.assets.sort(key=lambda x: x.n)
-        self.asset_mean = asset_mean
-        self.asset_std = asset_std
-        self.liabilities_mean = liabilities_mean
-        self.liabilities_std = liabilities_std
+        self.assets.sort(key=lambda x: x.n) # sort assets by return rate
+        self.asset_mean = asset_mean # mean of the asset value
+        self.asset_std = asset_std # standard deviation of the asset value
+        self.liabilities_mean = liabilities_mean # mean of the liabilities
+        self.liabilities_std = liabilities_std # standard deviation of the liabilities
         self.last = 0
 
         # strategies
@@ -118,6 +121,7 @@ class Game:
         for i in range(self.num_rounds):
             self.run_round()
             
+            # randomly devalue assets
             if np.random.uniform(0, 1) < 1/self.num_rounds:
                 self.randomDevalue()
             if np.random.uniform(0, 1) < 1/self.num_rounds:
@@ -156,13 +160,13 @@ class Game:
 
     # randomly devalue an asset
     def randomDevalue(self):
-        assets = [asset.volatility for asset in self.assets]
-        stockBaseReturnRates = np.array(assets).flatten()
-        total = np.sum(stockBaseReturnRates)
-        stockBaseReturnRates = stockBaseReturnRates / total
-        stockToDevalue = np.random.choice([i for i in range(self.num_assets)], 1, p=stockBaseReturnRates)
-        asset = self.assets[stockToDevalue[0]]
-        asset.n = np.random.normal(-50, asset.volatility, 1)[0]
+        assets = [asset.volatility for asset in self.assets] # volatility of each asset
+        stockBaseReturnRates = np.array(assets).flatten() # convert to np array
+        total = np.sum(stockBaseReturnRates) # sum of all volatilities
+        stockBaseReturnRates = stockBaseReturnRates / total # normalize
+        stockToDevalue = np.random.choice([i for i in range(self.num_assets)], 1, p=stockBaseReturnRates) # randomly choose an asset
+        asset = self.assets[stockToDevalue[0]] # get the asset
+        asset.n = np.random.normal(-50, asset.volatility, 1)[0] # devalue the asset
 
     # initialize the game
     def initialize(self, n, strategies, num_strategies):
@@ -251,11 +255,11 @@ class Game:
         # iterate through the strategies
         for i, strat1 in enumerate(self.strategies):
             for j, strat2 in enumerate(self.strategies):
-                strat1 = self.choose_strategy(i, strat1)
-                strat2 = self.choose_strategy(j, strat2)
+                strat1 = self.choose_strategy(i, strat1) # choose strategy for bank 1
+                strat2 = self.choose_strategy(j, strat2) # choose strategy for bank 2
                 for k, asset in enumerate(self.assets):
-                    return_rate = self.f(bank1, bank2, asset, strat1[k], strat2[k]) / 100
-                    payoffs[i, j] += bank1.asset_value * strat1[k] * return_rate
+                    return_rate = self.f(bank1, bank2, asset, strat1[k], strat2[k]) / 100 # get return rate
+                    payoffs[i, j] += bank1.asset_value * strat1[k] * return_rate # add to payoff
 
         # create probability distribution from strategy
         prob_dist_1 = np.array(bank1.strategy)
