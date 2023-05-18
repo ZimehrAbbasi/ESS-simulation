@@ -15,6 +15,7 @@ class Bank:
         self.default = False # whether the bank has defaulted
         self.last_strategy = None # last strategy of the bank
 
+# Asset class
 class Asset:
 
     def __init__(self, k, r, l, n, volatility):
@@ -28,6 +29,7 @@ class Asset:
     def logistic(self, x):
         return self.r * (self.l/(1 + np.exp(-self.k*x)) - 0.5) + self.n # logistic function
 
+# Game class
 class Game:
 
     def __init__(self, n, m, num_rounds, assets, asset_mean, asset_std, liabilities_mean, liabilities_std):
@@ -39,6 +41,7 @@ class Game:
         # sort assets by return rate
         self.assets.sort(key=lambda x: x.n) # sort assets by return rate
 
+        # backup of assets
         self.assets_backup = [Asset(asset.k, asset.r, asset.l, asset.n, asset.volatility) for asset in self.assets]
 
         self.asset_mean = asset_mean # mean of the asset value
@@ -302,9 +305,11 @@ class Game:
 
         # play a round of the game
         for pair in pairs:
+            # get the payoffs
             payoff_player1 = self.playOff(pair[0], pair[1])
             payoff_player2 = self.playOff(pair[1], pair[0])
 
+            # update the asset values
             pair[0].new_asset_value += payoff_player1
             pair[1].new_asset_value += payoff_player2
 
@@ -334,8 +339,8 @@ class Game:
     def print_results(self, strat):
   
         plt.bar(np.array([i for i in range(self.num_strategies)]), np.array(strat), align='center', color='blue')
-        plt.ylabel('Strategies')
-        plt.xlabel('Abundance of Strategies')
+        plt.xlabel('Strategies')
+        plt.ylabel('Abundance of Strategies')
         plt.title('Strategy Abundance')
         # x labels
         plt.xticks(np.array([i for i in range(self.num_strategies)]), ('1', '2', '3', '4', '5', '6', '7', '8', '9'))
@@ -369,6 +374,6 @@ if __name__ == "__main__":
     # Initialize game
     game = Game(num_banks, num_assets, num_rounds, assets, assets_means, assets_std, liabilities_means, liabilities_std)
 
-    EPOCHS = 5
+    EPOCHS = 1
     # Run game
     game.run(EPOCHS)
