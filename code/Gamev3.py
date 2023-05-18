@@ -38,6 +38,9 @@ class Game:
         self.assets = assets # list of assets
         # sort assets by return rate
         self.assets.sort(key=lambda x: x.n) # sort assets by return rate
+
+        self.assets_backup = [Asset(asset.k, asset.r, asset.l, asset.n, asset.volatility) for asset in self.assets]
+
         self.asset_mean = asset_mean # mean of the asset value
         self.asset_std = asset_std # standard deviation of the asset value
         self.liabilities_mean = liabilities_mean # mean of the liabilities
@@ -142,6 +145,9 @@ class Game:
                     if np.array_equal(bank.last_strategy, strategy):
                         strat[i] += 1/self.num_rounds
                         break
+
+        # reset assets
+        self.assets = self.assets_backup
 
         print("Evolutionary Game finished for this epoch.")
 
@@ -278,8 +284,8 @@ class Game:
     # create disjoint pairs of banks
     def disjointPairs(self, banks):
         n = len(banks)
-        left = banks[0:n//2]
-        right = banks[n//2:]
+        left = banks[0:n//2] # left half of banks
+        right = banks[n//2:] # right half of banks
         pairs = []
         for i in range(n//2):
             pairs.append([left[i], right[i]])
@@ -352,8 +358,17 @@ if __name__ == "__main__":
     for i in range(num_assets):
         assets.append(Asset(0.1, 2, 1, asset_array[i][0] * 100, asset_array[i][1] * 100))
 
-    # Initialize game
-    game = Game(50, num_assets, 50, assets, 7.00306, 0.69115, 4.60517, 0.92103)
+    assets_means = 7.00306
+    assets_std = 0.69115
+    liabilities_means = 4.60517
+    liabilities_std = 0.92103
 
+    num_banks = 100
+    num_rounds = 100
+
+    # Initialize game
+    game = Game(num_banks, num_assets, num_rounds, assets, assets_means, assets_std, liabilities_means, liabilities_std)
+
+    EPOCHS = 5
     # Run game
-    game.run(3)
+    game.run(EPOCHS)
