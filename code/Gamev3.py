@@ -7,14 +7,14 @@ import copy
 
 # Bank class
 class Bank:
-    def __init__(self, name, strategy, asset_value, liabilities, internal_assets, interal_assets_value, internal_liabilities, internal_liabilities_value):
+    def __init__(self, name, strategy, asset_value, liabilities, internal_assets, internal_assets_value, internal_liabilities, internal_liabilities_value):
         self.name = name # name of the bank
         self.strategy = strategy # strategy of the bank
         self.asset_value = asset_value # value of the assets
         self.liabilities = liabilities # value of the liabilities
         self.new_asset_value = asset_value # value of the assets after the round
         self.internal_assets = internal_assets # value of the internal assets
-        self.interal_assets_value = interal_assets_value # value of the internal assets after the round
+        self.internal_assets_value = internal_assets_value # value of the internal assets after the round
         self.internal_liabilities = internal_liabilities # value of the internal liabilities
         self.internal_liabilities_value = internal_liabilities_value # value of the internal liabilities after the round
         self.default = False # whether the bank has defaulted
@@ -129,7 +129,6 @@ class Game:
         # Initialize the game
         print("Initializing the game for this epoch...")
         self.initialize(self.num_banks, self.strategy_space, self.num_strategies)
-        print(self.num_banks)
         print("Game initialization successful.")
         
         # Initialize strategy distribution
@@ -144,13 +143,21 @@ class Game:
             
             # randomly devalue assets
             if np.random.uniform(0, 1) < 1/ (2*self.num_rounds):
-                print("Randomly devaluing assets...")
+                print("#############################################")
+                print()
+                print("SHOCK: ASSET VALUE FALLEN BY 50%")
+                print()
+                print("#############################################")
                 self.randomDevalue()
             if np.random.uniform(0, 1) < 1/(2*self.num_rounds):
-                print("Devaluing highest asset...")
+                print("#############################################")
+                print()
+                print("SHOCK: HIGHEST ASSET VALUE FALLEN BY 50%")
+                print()
+                print("#############################################")
                 self.devalueHighest()
 
-            if i % 100 == 0:
+            if i % 10 == 0:
                 print("Round number", i)
                 print("\tTime elapsed:", round(time.time() - start_time, 4), "seconds")
                 average_time = (time.time() - start_time) / (i + 1)
@@ -181,7 +188,7 @@ class Game:
             self.assets.append(Asset(0.1, 2, 1, copy.deepcopy(self.asset_array[i][0]) * 100, copy.deepcopy(self.asset_array[i][1]) * 100))
 
         print("Evolutionary Game finished for this epoch.")
-        self.print_results(strat)
+        # self.print_results(strat)
 
         return strat
 
@@ -207,38 +214,35 @@ class Game:
 
     # initialize the game
     def initialize(self, n, strategies, num_strategies):
-        i = self.last
-        # try:
-        #     if not self.A:
-        #         self.A = self.create_matrix()
-        #         self.L = self.A.T
-        # except:
-        #     pass
-        # B = self.A - self.L
-        # C = np.matmul(B, np.ones(self.num_banks))
-        while i < n + self.last:
 
+        self.banks = []
+        self.A = self.create_matrix(n)
+        self.L = self.A.T
+        B = self.A - self.L
+        C = np.matmul(B, np.ones(len(self.A)))
+
+        for i in range(n):
+            
             # generate random assets and liabilities
             assets = np.random.lognormal(self.asset_mean, self.asset_std)
             liability = np.random.lognormal(self.liabilities_mean, self.liabilities_std)
-
             # if assets are greater than liabilities, create a bank
-            # if assets - liability + C[i] > 0:
-            if assets - liability > 0:
-                # create a probability distribution for each bank over the strategies
-                if not strategies:
-                    # create vector with 0s in all columns and 1 in 1 column
-                    strat_dist = np.zeros(num_strategies)
-                    strat_dist[np.random.randint(0, num_strategies)] = 1
-                else:
-                    # generate random number in range [0, num_strategies]
-                    num = np.random.uniform(0, len(strategies))
-                    strat_dist = strategies[int(num)]
-                # self.banks.append(Bank(i, strat_dist, assets, liability, self.A[i], np.sum(self.A[i]), self.L[i], np.sum(self.L[i])))
-                self.banks.append(Bank(i, strat_dist, assets, liability, 0, 0, 0, 0))
-                i += 1
-
-        self.last = i
+            while assets - liability + C[i] <= 0:
+                assets = np.random.lognormal(self.asset_mean, self.asset_std)
+                liability = np.random.lognormal(self.liabilities_mean, self.liabilities_std)
+                
+            # if assets - liability > 0:
+            # create a probability distribution for each bank over the strategies
+            if not strategies:
+                # create vector with 0s in all columns and 1 in 1 column
+                strat_dist = np.zeros(num_strategies)
+                strat_dist[np.random.randint(0, num_strategies)] = 1
+            else:
+                # generate random number in range [0, num_strategies]
+                num = np.random.uniform(0, len(strategies))
+                strat_dist = strategies[int(num)]
+            # self.banks.append(Bank(i, strat_dist, assets, liability, self.A[i], np.sum(self.A[i]), self.L[i], np.sum(self.L[i])))
+            self.banks.append(Bank(i, strat_dist, assets, liability, 0, 0, 0, 0))
 
     def choose_strategy(self, i, strategy):
         
@@ -293,7 +297,6 @@ class Game:
 
         return payoff_matrix[bank1_i, bank2_i]
     
-    # TODO: banks play against the market not the other banks
     # play a round of the game
     def playOff(self, bank):
 
@@ -311,42 +314,67 @@ class Game:
     
     def adjustMatrix(self, i):
         pass
+
+    def checkDefault(self):
+
+        defaulted = False
+        haircut = 0.4
+        i = len(self.banks) - 1
+        while i > -1:
+            bank = self.banks[i]
+            if bank.new_asset_value + bank.internal_assets_value <= bank.liabilities + bank.internal_liabilities_value:
+            # if bank.new_asset_value <= bank.liabilities:
+                # calculate difference in external assets and liabilities
+                diff = bank.new_asset_value - bank.liabilities
+                total_assets = diff + bank.internal_assets_value
+                shortfall = bank.internal_liabilities_value - total_assets
+                
+                # calculate the haircut
+                new_value = total_assets * (1 - haircut)
+                # get column i of A
+                col = self.A[:, i]
+                for j in range(len(self.banks)):
+                    self.banks[j].internal_assets_value -= col[j]
+
+                sum_col = np.sum(col)
+                col = col / sum_col * new_value
+                for j in range(len(self.banks)):
+                    self.banks[j].new_asset_value += col[j]
+
+                # remove the ith column and row from A and L
+                self.A = np.delete(self.A, i, 0)
+                self.A = np.delete(self.A, i, 1)
+                self.L = np.delete(self.L, i, 0)
+                self.L = np.delete(self.L, i, 1)
+
+                # remove the ith bank
+                self.banks.pop(i)
+                bank.default = True
+                defaulted = True
+            else:
+                bank.default = False
+            
+            i -= 1
+
+        return defaulted
     
     # run a round of the game
     def run_round(self):
-        
-        # shuffle the banks
-        np.random.shuffle(self.banks)
 
         # play a round of the game
         for bank in self.banks:
             # get the payoffs
             payoff = self.playOff(bank)
-
             # update the asset values
             bank.new_asset_value += payoff
 
         # check for defaults
-        popped = 0
-        for i, bank in enumerate(self.banks):
-            if bank.new_asset_value + bank.interal_assets_value <= bank.liabilities + bank.internal_liabilities_value:
-            # if bank.new_asset_value <= bank.liabilities:
-                
-                # TODO: update banks assets and liabilities matrices
-                # If bank defaults then the assets are distributed proportionally among all the banks that it is liable to
-                # we need to distribute the assets and then remove the bank from the list of banks
-
-                self.banks.pop(i)
-                popped += 1
-            else:
-                bank.default = False
-
-        # initialize new banks
-        # self.initialize(popped, None, self.num_strategies)
+        while self.checkDefault():
+            pass
 
     def print_results(self, strat):
   
-        plt.bar(np.array([i for i in range(self.num_strategies)]), np.array(strat), align='center', color='blue')
+        plt.bar(np.array([i for i in range(self.num_strategies)]), np.array(strat) / np.sum(strat), align='center', color='blue')
         plt.xlabel('Investment Strategies')
         plt.ylabel('Abundance of Strategies')
         plt.title('Strategy Abundance')
@@ -354,15 +382,15 @@ class Game:
         plt.xticks(np.array([i for i in range(self.num_strategies)]), ('1', '2', '3', '4', '5', '6', '7', '8', '9'))
         plt.show()
 
-    def create_matrix(self):
+    def create_matrix(self, n):
         
         # create initial matrix
-        A = np.zeros((self.num_banks, self.num_banks))
+        A = np.zeros((n, n))
 
         # create random matrix
-        for i in range(self.num_banks):
+        for i in range(n):
             row_sum = np.random.lognormal(self.asset_mean, self.asset_std)
-            distribution = np.random.uniform(0, 1, self.num_banks - 1) * np.random.randint(0, 2, self.num_banks - 1)
+            distribution = np.random.uniform(0, 1, n - 1) * np.random.randint(0, 2, n - 1)
             distribution /= np.sum(distribution)
             distribution *= row_sum
             row_vec = np.insert(distribution, i, 0)
@@ -392,7 +420,7 @@ if __name__ == "__main__":
     # Initialize game
     game = Game(num_banks, num_assets, num_rounds, asset_array, assets_means, assets_std, liabilities_means, liabilities_std)
 
-    EPOCHS = 10
+    EPOCHS = 30
     # Run game
     game.run(EPOCHS)
 
