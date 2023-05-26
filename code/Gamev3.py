@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import networkx as nx
 import time
 import copy
 
@@ -40,6 +41,7 @@ class Game:
 
     def __init__(self, n, m, num_rounds, asset_array, asset_mean, asset_std, liabilities_mean, liabilities_std):
         self.banks = []  # list of banks
+        self.defaulted_banks = [] # list of defaulted banks
         self.num_rounds = num_rounds # number of rounds
         self.num_banks = n # number of banks
         self.num_assets = m # number of assets
@@ -103,10 +105,10 @@ class Game:
         strat8 = strat8 / np.sum(strat8)
 
         # 9. random strategy
-        strat9 = np.random.uniform(0, 1, self.num_assets)
+        # strat9 = np.random.uniform(0, 1, self.num_assets)
 
         # create a list of strategies
-        self.strategies = [strat1, strat2, strat3, strat4, strat5, strat6, strat7, strat8, strat9]
+        self.strategies = [strat1, strat2, strat3, strat4, strat5, strat6, strat7, strat8]
         for i, strat in enumerate(self.strategies):
             if np.isnan(strat).any() or np.sum(strat) != 1:
                 self.strategies[i] = np.random.uniform(0, 1, self.num_assets)
@@ -116,15 +118,27 @@ class Game:
         self.strategy_space = None
 
     def run(self, epoch=25):
+
         strategy_distribution = np.zeros(self.num_strategies)
+        plt.ion()
+
+        fig, ax = plt.subplots()
         for i in range(epoch):
             print("Epoch", i)
-            strategy_distribution += self.epoch()/epoch
+            strat = self.epoch(ax)/epoch
+            strategy_distribution += strat
 
-        print("Game simulation finished.")
+        plt.ioff()
+        ax.clear()
+
+        strategy_distribution = strategy_distribution / epoch
+
         self.print_results(strategy_distribution)
+        print("Game simulation finished.")
 
-    def epoch(self):
+    def epoch(self, ax):
+
+        colors = {True: 'red', False: 'green'}
 
         # Initialize the game
         print("Initializing the game for this epoch...")
@@ -133,6 +147,7 @@ class Game:
         
         # Initialize strategy distribution
         strat = np.zeros(self.num_strategies)
+        bank_copy = self.banks[:]
 
         # Run the game
         print("Running the Evolutionary Game...")
@@ -142,14 +157,14 @@ class Game:
             self.run_round()
             
             # randomly devalue assets
-            if np.random.uniform(0, 1) < 1/ (2*self.num_rounds):
+            if np.random.uniform(0, 1) < 2/(self.num_rounds):
                 print("#############################################")
                 print()
                 print("SHOCK: ASSET VALUE FALLEN BY 50%")
                 print()
                 print("#############################################")
                 self.randomDevalue()
-            if np.random.uniform(0, 1) < 1/(2*self.num_rounds):
+            if np.random.uniform(0, 1) < 2/(self.num_rounds):
                 print("#############################################")
                 print()
                 print("SHOCK: HIGHEST ASSET VALUE FALLEN BY 50%")
@@ -157,12 +172,45 @@ class Game:
                 print("#############################################")
                 self.devalueHighest()
 
-            if i % 10 == 0:
+            # TODO: default random bank
+            # if np.random.uniform(0, 1) < 2/(self.num_rounds):
+            #     print("#############################################")
+            #     print()
+            #     print("SHOCK: RANDOM BANK DEFAULTS")
+            #     print()
+            #     print("#############################################")
+            #     self.defaultRandomBank()
+
+            if i % 100 == 0:
                 print("Round number", i)
                 print("\tTime elapsed:", round(time.time() - start_time, 4), "seconds")
                 average_time = (time.time() - start_time) / (i + 1)
                 remaining = average_time * (self.num_rounds - i)
                 print("\tEstimated time remaining:", round(remaining, 4), "seconds")
+
+                ax.clear()
+
+                G = nx.Graph()
+
+                for bank in self.banks:
+                    G.add_node(bank.name, attr=False)
+
+                for bank in self.defaulted_banks:
+                    # get value of 1 in bank strategy
+                    print(bank.name, "has defaulted playing strategy ", bank.strategy)
+                    G.add_node(bank.name, attr=True)
+
+                node_attributes = nx.get_node_attributes(G, 'attr')
+                node_colors = [colors[attr] for attr in node_attributes.values()]
+
+                # Draw the graph
+                pos = nx.spring_layout(G)  # Layout algorithm for graph visualization
+
+                nx.draw_networkx(G, pos, node_color=node_colors, with_labels=True, ax=ax)
+
+                # Show the graph
+                plt.show()
+                plt.pause(0.1)
 
             for bank in self.banks:
                 # convert all strategies to np arrays of type float
@@ -216,6 +264,7 @@ class Game:
     def initialize(self, n, strategies, num_strategies):
 
         self.banks = []
+        self.defaulted_banks = []
         self.A = self.create_matrix(n)
         self.L = self.A.T
         B = self.A - self.L
@@ -312,8 +361,41 @@ class Game:
 
         return payoff
     
-    def adjustMatrix(self, i):
-        pass
+    def checkDefaulted(self, i, haircut=0.4):
+        bank = self.banks[i]
+        defaulted = False
+        if bank.new_asset_value + bank.internal_assets_value <= bank.liabilities + bank.internal_liabilities_value:
+        # if bank.new_asset_value <= bank.liabilities:
+            # calculate difference in external assets and liabilities
+            diff = bank.new_asset_value - bank.liabilities
+            total_assets = diff + bank.internal_assets_value
+            shortfall = bank.internal_liabilities_value - total_assets
+            
+            # calculate the haircut
+            new_value = total_assets * (1 - haircut)
+            # get column i of A
+            col = self.A[:, i]
+            for j in range(len(self.banks)):
+                self.banks[j].internal_assets_value -= col[j]
+
+            sum_col = np.sum(col)
+            col = col / sum_col * new_value
+            for j in range(len(self.banks)):
+                self.banks[j].new_asset_value += col[j]
+
+            # remove the ith column and row from A and L
+            self.A = np.delete(self.A, i, 0)
+            self.A = np.delete(self.A, i, 1)
+            self.L = np.delete(self.L, i, 0)
+            self.L = np.delete(self.L, i, 1)
+
+            # remove the ith bank
+            self.banks.pop(i)
+            bank.default = True
+            defaulted = True
+            self.defaulted_banks.append(bank)
+
+        return defaulted
 
     def checkDefault(self):
 
@@ -321,42 +403,14 @@ class Game:
         haircut = 0.4
         i = len(self.banks) - 1
         while i > -1:
-            bank = self.banks[i]
-            if bank.new_asset_value + bank.internal_assets_value <= bank.liabilities + bank.internal_liabilities_value:
-            # if bank.new_asset_value <= bank.liabilities:
-                # calculate difference in external assets and liabilities
-                diff = bank.new_asset_value - bank.liabilities
-                total_assets = diff + bank.internal_assets_value
-                shortfall = bank.internal_liabilities_value - total_assets
-                
-                # calculate the haircut
-                new_value = total_assets * (1 - haircut)
-                # get column i of A
-                col = self.A[:, i]
-                for j in range(len(self.banks)):
-                    self.banks[j].internal_assets_value -= col[j]
-
-                sum_col = np.sum(col)
-                col = col / sum_col * new_value
-                for j in range(len(self.banks)):
-                    self.banks[j].new_asset_value += col[j]
-
-                # remove the ith column and row from A and L
-                self.A = np.delete(self.A, i, 0)
-                self.A = np.delete(self.A, i, 1)
-                self.L = np.delete(self.L, i, 0)
-                self.L = np.delete(self.L, i, 1)
-
-                # remove the ith bank
-                self.banks.pop(i)
-                bank.default = True
-                defaulted = True
-            else:
-                bank.default = False
-            
+            defaulted = self.checkDefaulted(i, haircut)
             i -= 1
 
         return defaulted
+    
+    def defaultRandomBank(self, bank):
+        pass
+        
     
     # run a round of the game
     def run_round(self):
@@ -379,7 +433,7 @@ class Game:
         plt.ylabel('Abundance of Strategies')
         plt.title('Strategy Abundance')
         # x labels
-        plt.xticks(np.array([i for i in range(self.num_strategies)]), ('1', '2', '3', '4', '5', '6', '7', '8', '9'))
+        plt.xticks(np.array([i for i in range(self.num_strategies)]), ('0', '1', '2', '3', '4', '5', '6', '7'))
         plt.show()
 
     def create_matrix(self, n):
@@ -389,7 +443,7 @@ class Game:
 
         # create random matrix
         for i in range(n):
-            row_sum = np.random.lognormal(self.asset_mean, self.asset_std)
+            row_sum = np.random.lognormal(self.asset_mean/5, self.asset_std)
             distribution = np.random.uniform(0, 1, n - 1) * np.random.randint(0, 2, n - 1)
             distribution /= np.sum(distribution)
             distribution *= row_sum
@@ -415,12 +469,12 @@ if __name__ == "__main__":
 
     num_banks = 100
     num_assets = 5
-    num_rounds = 100
+    num_rounds = 1000
 
     # Initialize game
     game = Game(num_banks, num_assets, num_rounds, asset_array, assets_means, assets_std, liabilities_means, liabilities_std)
 
-    EPOCHS = 30
+    EPOCHS = 10
     # Run game
     game.run(EPOCHS)
 
