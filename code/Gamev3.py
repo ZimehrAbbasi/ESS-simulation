@@ -64,7 +64,7 @@ class Game:
         self.A = None
         self.L = None
 
-        # strategies
+        # Strategies
 
         # 1. assets with highest expected return
         strat1 = np.array([1 if i == (self.num_assets - 1) else 0 for i in range(self.num_assets)])
@@ -119,9 +119,11 @@ class Game:
 
     def run(self, epoch=25):
 
+        # Initialize the game
         strategy_distribution = np.zeros(self.num_strategies)
         plt.ion()
 
+        # Run the game
         fig, ax = plt.subplots()
         for i in range(epoch):
             print("Epoch", i)
@@ -131,13 +133,16 @@ class Game:
         plt.ioff()
         ax.clear()
 
+        # Normalize the strategy distribution
         strategy_distribution = strategy_distribution / epoch
 
+        # Print the results
         self.print_results(strategy_distribution)
         print("Game simulation finished.")
 
     def epoch(self, ax):
-
+        
+        # Set the colors for the graph nodes
         colors = {True: 'red', False: 'green'}
 
         # Initialize the game
@@ -172,14 +177,13 @@ class Game:
                 print("#############################################")
                 self.devalueHighest()
 
-            # TODO: default random bank
-            # if np.random.uniform(0, 1) < 2/(self.num_rounds):
-            #     print("#############################################")
-            #     print()
-            #     print("SHOCK: RANDOM BANK DEFAULTS")
-            #     print()
-            #     print("#############################################")
-            #     self.defaultRandomBank()
+            if np.random.uniform(0, 1) < 2/(self.num_rounds):
+                print("#############################################")
+                print()
+                print("SHOCK: RANDOM BANK DEFAULTS")
+                print()
+                print("#############################################")
+                self.defaultRandomBank()
 
             if i % 100 == 0:
                 print("Round number", i)
@@ -204,7 +208,7 @@ class Game:
                 node_colors = [colors[attr] for attr in node_attributes.values()]
 
                 # Draw the graph
-                pos = nx.spring_layout(G)  # Layout algorithm for graph visualization
+                pos = nx.random_layout(G)  # Layout algorithm for graph visualization
 
                 nx.draw_networkx(G, pos, node_color=node_colors, with_labels=True, ax=ax)
 
@@ -408,8 +412,20 @@ class Game:
 
         return defaulted
     
-    def defaultRandomBank(self, bank):
-        pass
+    def defaultRandomBank(self):
+        # generate uniformly random number
+        i = np.random.randint(0, len(self.banks))
+        # reduce external assets of bank by a certain percentage
+        bank = self.banks[i]
+        # p = np.random.uniform(0, 1) 
+        # while p * bank.new_asset_value > bank.liabilities:
+        #     p = np.random.uniform(0, 1)
+
+        # bank.new_asset_value = p * bank.new_asset_value
+        bank.new_asset_value = 0
+        
+        while self.checkDefault():
+            pass
         
     
     # run a round of the game
@@ -443,7 +459,7 @@ class Game:
 
         # create random matrix
         for i in range(n):
-            row_sum = np.random.lognormal(self.asset_mean/5, self.asset_std)
+            row_sum = np.random.lognormal(self.asset_mean/3, self.asset_std)
             distribution = np.random.uniform(0, 1, n - 1) * np.random.randint(0, 2, n - 1)
             distribution /= np.sum(distribution)
             distribution *= row_sum
@@ -455,7 +471,7 @@ class Game:
 if __name__ == "__main__":
 
     # Set the random seed for reproducibility (optional)
-    np.random.seed(24)
+    np.random.seed()
 
     # Initialize assets
 
@@ -478,12 +494,4 @@ if __name__ == "__main__":
     # Run game
     game.run(EPOCHS)
 
-
-# TODO: Add inter bank loan network
-
-# Algorithmically create a n * n matrix A such that A_i - A_i^T is a symmetric matrix with 0 on the diagonal and (A_i - A_i^T) * 1 + A_e - L_e > 0
-# the rows and columns of A represent the banks and the entries represent the amount of interbank loans between the banks
-# the entries of A_i - A_i^T represent the net amount of interbank loans between the banks
-# the entries of A_i represent the total amount of interbank assets between the banks
-# the entries of A_i^T represent the total amount of interbank loans between the banks
 
