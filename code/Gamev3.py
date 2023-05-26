@@ -117,6 +117,39 @@ class Game:
 
         self.strategy_space = None
 
+    # initialize the game
+    def initialize(self, n, strategies, num_strategies):
+
+        self.banks = []
+        self.defaulted_banks = []
+        self.A = self.create_matrix(n)
+        self.L = self.A.T
+        B = self.A - self.L
+        C = np.matmul(B, np.ones(len(self.A)))
+
+        for i in range(n):
+            
+            # generate random assets and liabilities
+            assets = np.random.lognormal(self.asset_mean, self.asset_std)
+            liability = np.random.lognormal(self.liabilities_mean, self.liabilities_std)
+            # if assets are greater than liabilities, create a bank
+            while assets - liability + C[i] <= 0:
+                assets = np.random.lognormal(self.asset_mean, self.asset_std)
+                liability = np.random.lognormal(self.liabilities_mean, self.liabilities_std)
+                
+            # if assets - liability > 0:
+            # create a probability distribution for each bank over the strategies
+            if not strategies:
+                # create vector with 0s in all columns and 1 in 1 column
+                strat_dist = np.zeros(num_strategies)
+                strat_dist[np.random.randint(0, num_strategies)] = 1
+            else:
+                # generate random number in range [0, num_strategies]
+                num = np.random.uniform(0, len(strategies))
+                strat_dist = strategies[int(num)]
+            # self.banks.append(Bank(i, strat_dist, assets, liability, self.A[i], np.sum(self.A[i]), self.L[i], np.sum(self.L[i])))
+            self.banks.append(Bank(i, strat_dist, assets, liability, 0, 0, 0, 0))
+
     def run(self, epoch=25):
 
         # Initialize the game
@@ -154,22 +187,27 @@ class Game:
         strat = np.zeros(self.num_strategies)
         bank_copy = self.banks[:]
 
+        G = nx.Graph()
+
+        for bank in bank_copy:
+            G.add_node(bank.name, attr=False)
+
+        pos = nx.random_layout(G) 
+
         # Run the game
         print("Running the Evolutionary Game...")
-        start_time = time.time()
-        average_time = 0
         for i in range(self.num_rounds):
             self.run_round()
             
             # randomly devalue assets
-            if np.random.uniform(0, 1) < 2/(self.num_rounds):
+            if np.random.uniform(0, 1) < 1/(self.num_rounds):
                 print("#############################################")
                 print()
                 print("SHOCK: ASSET VALUE FALLEN BY 50%")
                 print()
                 print("#############################################")
                 self.randomDevalue()
-            if np.random.uniform(0, 1) < 2/(self.num_rounds):
+            if np.random.uniform(0, 1) < 1/(self.num_rounds):
                 print("#############################################")
                 print()
                 print("SHOCK: HIGHEST ASSET VALUE FALLEN BY 50%")
@@ -177,7 +215,7 @@ class Game:
                 print("#############################################")
                 self.devalueHighest()
 
-            if np.random.uniform(0, 1) < 2/(self.num_rounds):
+            if np.random.uniform(0, 1) < 1/(self.num_rounds):
                 print("#############################################")
                 print()
                 print("SHOCK: RANDOM BANK DEFAULTS")
@@ -187,29 +225,15 @@ class Game:
 
             if i % 100 == 0:
                 print("Round number", i)
-                print("\tTime elapsed:", round(time.time() - start_time, 4), "seconds")
-                average_time = (time.time() - start_time) / (i + 1)
-                remaining = average_time * (self.num_rounds - i)
-                print("\tEstimated time remaining:", round(remaining, 4), "seconds")
 
                 ax.clear()
 
-                G = nx.Graph()
-
-                for bank in self.banks:
-                    G.add_node(bank.name, attr=False)
-
                 for bank in self.defaulted_banks:
-                    # get value of 1 in bank strategy
                     print(bank.name, "has defaulted playing strategy ", bank.strategy)
-                    G.add_node(bank.name, attr=True)
+                    G.nodes[bank.name]['attr'] = True
 
                 node_attributes = nx.get_node_attributes(G, 'attr')
                 node_colors = [colors[attr] for attr in node_attributes.values()]
-
-                # Draw the graph
-                pos = nx.random_layout(G)  # Layout algorithm for graph visualization
-
                 nx.draw_networkx(G, pos, node_color=node_colors, with_labels=True, ax=ax)
 
                 # Show the graph
@@ -263,39 +287,6 @@ class Game:
         stockToDevalue = np.random.choice([i for i in range(self.num_assets)], 1, p=stockBaseReturnRates) # randomly choose an asset
         asset = self.assets[stockToDevalue[0]] # get the asset
         asset.n = np.random.normal(-50, asset.volatility, 1)[0] # devalue the asset
-
-    # initialize the game
-    def initialize(self, n, strategies, num_strategies):
-
-        self.banks = []
-        self.defaulted_banks = []
-        self.A = self.create_matrix(n)
-        self.L = self.A.T
-        B = self.A - self.L
-        C = np.matmul(B, np.ones(len(self.A)))
-
-        for i in range(n):
-            
-            # generate random assets and liabilities
-            assets = np.random.lognormal(self.asset_mean, self.asset_std)
-            liability = np.random.lognormal(self.liabilities_mean, self.liabilities_std)
-            # if assets are greater than liabilities, create a bank
-            while assets - liability + C[i] <= 0:
-                assets = np.random.lognormal(self.asset_mean, self.asset_std)
-                liability = np.random.lognormal(self.liabilities_mean, self.liabilities_std)
-                
-            # if assets - liability > 0:
-            # create a probability distribution for each bank over the strategies
-            if not strategies:
-                # create vector with 0s in all columns and 1 in 1 column
-                strat_dist = np.zeros(num_strategies)
-                strat_dist[np.random.randint(0, num_strategies)] = 1
-            else:
-                # generate random number in range [0, num_strategies]
-                num = np.random.uniform(0, len(strategies))
-                strat_dist = strategies[int(num)]
-            # self.banks.append(Bank(i, strat_dist, assets, liability, self.A[i], np.sum(self.A[i]), self.L[i], np.sum(self.L[i])))
-            self.banks.append(Bank(i, strat_dist, assets, liability, 0, 0, 0, 0))
 
     def choose_strategy(self, i, strategy):
         
@@ -478,12 +469,12 @@ if __name__ == "__main__":
     # Manually created external assets with mean and standard deviation
     asset_array = [[0.02, 0.01], [0.04, 0.04], [0.06, 0.08], [0.08, 0.12], [0.1, 0.16]]
 
-    assets_means = 7.00306
-    assets_std = 0.69115
-    liabilities_means = 4.60517
-    liabilities_std = 0.92103
+    assets_means = 12.87206
+    assets_std = 1.527814
+    liabilities_means = 12.68826
+    liabilities_std = 1.578161
 
-    num_banks = 100
+    num_banks = 250
     num_assets = 5
     num_rounds = 1000
 
