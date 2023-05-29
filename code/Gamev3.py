@@ -39,7 +39,7 @@ class Asset:
 # Game class
 class Game:
 
-    def __init__(self, n, m, num_rounds, asset_array, asset_mean, asset_std, liabilities_mean, liabilities_std):
+    def __init__(self, n, m, num_rounds, asset_array, asset_mean, asset_std, liabilities_mean, liabilities_std, p, showGraph):
         self.banks = []  # list of banks
         self.defaulted_banks = [] # list of defaulted banks
         self.num_rounds = num_rounds # number of rounds
@@ -60,6 +60,8 @@ class Game:
         self.liabilities_mean = liabilities_mean # mean of the liabilities
         self.liabilities_std = liabilities_std # standard deviation of the liabilities
         self.last = 0
+        self.p = p
+        self.showGraph = showGraph
 
         self.A = None
         self.L = None
@@ -107,8 +109,14 @@ class Game:
         # 9. random strategy
         # strat9 = np.random.uniform(0, 1, self.num_assets)
 
+        # 10. median volatility
+        median_volatility = np.median([asset.volatility for asset in self.assets])
+        strat10 = np.array([1 if asset.volatility == median_volatility else 0 for asset in self.assets])
+        # normalize the strategy
+        strat10 = strat10 / np.sum(strat10)
+
         # create a list of strategies
-        self.strategies = [strat1, strat2, strat3, strat4, strat5, strat6, strat7, strat8]
+        self.strategies = [strat1, strat2, strat3, strat4, strat5, strat6, strat7, strat8, strat10]
         for i, strat in enumerate(self.strategies):
             if np.isnan(strat).any() or np.sum(strat) != 1:
                 self.strategies[i] = np.random.uniform(0, 1, self.num_assets)
@@ -127,15 +135,26 @@ class Game:
         B = self.A - self.L
         C = np.matmul(B, np.ones(len(self.A)))
 
+        inc = 0
+
         for i in range(n):
-            
             # generate random assets and liabilities
-            assets = np.random.lognormal(self.asset_mean, self.asset_std)
-            liability = np.random.lognormal(self.liabilities_mean, self.liabilities_std)
+            total_assets = np.log(np.random.lognormal(self.asset_mean, self.asset_std))
+            total_liability = -0.361664 + 1.008992 * total_assets
+
+            assets = total_assets + np.sum(self.A[i])
+            liability = total_liability + np.sum(self.L[i])
+
             # if assets are greater than liabilities, create a bank
-            while assets - liability + C[i] <= 0:
-                assets = np.random.lognormal(self.asset_mean, self.asset_std)
-                liability = np.random.lognormal(self.liabilities_mean, self.liabilities_std)
+            while assets - liability + C[i] <= self.asset_std and assets < 0 and assets > 30:
+                total_assets = np.log(np.random.lognormal(self.asset_mean, self.asset_std + inc))
+                total_liability = -0.361664 + 1.008992 * total_assets
+
+                assets = total_assets + np.sum(self.A[i])
+                liability = total_liability + np.sum(self.L[i])
+                inc += 0.01
+
+            inc = 0
                 
             # if assets - liability > 0:
             # create a probability distribution for each bank over the strategies
@@ -150,28 +169,34 @@ class Game:
             # self.banks.append(Bank(i, strat_dist, assets, liability, self.A[i], np.sum(self.A[i]), self.L[i], np.sum(self.L[i])))
             self.banks.append(Bank(i, strat_dist, assets, liability, 0, 0, 0, 0))
 
+
     def run(self, epoch=25):
 
         # Initialize the game
         strategy_distribution = np.zeros(self.num_strategies)
-        plt.ion()
 
         # Run the game
-        fig, ax = plt.subplots()
+        if self.showGraph:
+            plt.ion()
+            fig, ax = plt.subplots()
+
+        ax = 0
+
         for i in range(epoch):
-            print("Epoch", i)
+            print("Generation", i)
             strat = self.epoch(ax)/epoch
             strategy_distribution += strat
 
-        plt.ioff()
-        ax.clear()
+        if self.showGraph:
+            plt.ioff()
+            ax.clear()
 
         # Normalize the strategy distribution
         strategy_distribution = strategy_distribution / epoch
 
         # Print the results
-        self.print_results(strategy_distribution)
         print("Game simulation finished.")
+        return strategy_distribution
 
     def epoch(self, ax):
         
@@ -200,13 +225,13 @@ class Game:
             self.run_round()
             
             # randomly devalue assets
-            if np.random.uniform(0, 1) < 1/(self.num_rounds):
-                print("#############################################")
-                print()
-                print("SHOCK: ASSET VALUE FALLEN BY 50%")
-                print()
-                print("#############################################")
-                self.randomDevalue()
+            # if np.random.uniform(0, 1) < 1/(self.num_rounds):
+            #     print("#############################################")
+            #     print()
+            #     print("SHOCK: ASSET VALUE FALLEN BY 50%")
+            #     print()
+            #     print("#############################################")
+            #     self.randomDevalue()
             if np.random.uniform(0, 1) < 1/(self.num_rounds):
                 print("#############################################")
                 print()
@@ -226,19 +251,21 @@ class Game:
             if i % 100 == 0:
                 print("Round number", i)
 
-                ax.clear()
+                if self.showGraph:
 
-                for bank in self.defaulted_banks:
-                    print(bank.name, "has defaulted playing strategy ", bank.strategy)
-                    G.nodes[bank.name]['attr'] = True
+                    ax.clear()
 
-                node_attributes = nx.get_node_attributes(G, 'attr')
-                node_colors = [colors[attr] for attr in node_attributes.values()]
-                nx.draw_networkx(G, pos, node_color=node_colors, with_labels=True, ax=ax)
+                    for bank in self.defaulted_banks:
+                        print(bank.name, "has defaulted playing strategy ", bank.strategy)
+                        G.nodes[bank.name]['attr'] = True
 
-                # Show the graph
-                plt.show()
-                plt.pause(0.1)
+                    node_attributes = nx.get_node_attributes(G, 'attr')
+                    node_colors = [colors[attr] for attr in node_attributes.values()]
+                    nx.draw_networkx(G, pos, node_color=node_colors, with_labels=True, ax=ax)
+
+                    # Show the graph
+                    plt.show()
+                    plt.pause(0.1)
 
             for bank in self.banks:
                 # convert all strategies to np arrays of type float
@@ -440,24 +467,35 @@ class Game:
         plt.ylabel('Abundance of Strategies')
         plt.title('Strategy Abundance')
         # x labels
-        plt.xticks(np.array([i for i in range(self.num_strategies)]), ('0', '1', '2', '3', '4', '5', '6', '7'))
+        plt.xticks(np.array([i for i in range(self.num_strategies)]), ('0', '1', '2', '3', '4', '5', '6', '7', '8'))
         plt.show()
 
     def create_matrix(self, n):
         
         # create initial matrix
         A = np.zeros((n, n))
-
+        cut = 10
         # create random matrix
         for i in range(n):
-            row_sum = np.random.lognormal(self.asset_mean/3, self.asset_std)
-            distribution = np.random.uniform(0, 1, n - 1) * np.random.randint(0, 2, n - 1)
+            row_sum = np.log(np.random.lognormal(self.asset_mean/cut, self.asset_std/np.sqrt(cut)))
+            distribution = np.random.uniform(0, 1, n - 1) * np.random.choice([0, 1], size=n-1, p=[self.p, 1-self.p])
             distribution /= np.sum(distribution)
             distribution *= row_sum
             row_vec = np.insert(distribution, i, 0)
             A[i] = row_vec
 
         return A
+    
+    def runMultiple(self, generations, epochs):
+
+        # run the game for a certain number of epochs
+        strat = np.zeros(self.num_strategies)
+        for i in range(epochs):
+            print("Epoch: ", i)
+            strat += self.run(generations)
+
+        # print the results
+        self.print_results(strat)
 
 if __name__ == "__main__":
 
@@ -469,20 +507,23 @@ if __name__ == "__main__":
     # Manually created external assets with mean and standard deviation
     asset_array = [[0.02, 0.01], [0.04, 0.04], [0.06, 0.08], [0.08, 0.12], [0.1, 0.16]]
 
-    assets_means = 12.87206
-    assets_std = 1.527814
-    liabilities_means = 12.68826
-    liabilities_std = 1.578161
+    assets_means = 19.66890448
+    assets_std = 2.31054634
+    liabilities_means = 19.45820445
+    liabilities_std = 2.27696596
 
     num_banks = 250
     num_assets = 5
     num_rounds = 1000
+    p = 0.1
+    showGraph = False
 
     # Initialize game
-    game = Game(num_banks, num_assets, num_rounds, asset_array, assets_means, assets_std, liabilities_means, liabilities_std)
+    game = Game(num_banks, num_assets, num_rounds, asset_array, assets_means, assets_std, liabilities_means, liabilities_std, p, showGraph)
 
     EPOCHS = 10
+    GENERATIONS = 50
     # Run game
-    game.run(EPOCHS)
+    game.runMultiple(GENERATIONS, EPOCHS)
 
 
