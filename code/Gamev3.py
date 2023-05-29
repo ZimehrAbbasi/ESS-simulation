@@ -222,6 +222,8 @@ class Game:
         # Run the game
         print("Running the Evolutionary Game...")
         for i in range(self.num_rounds):
+            if len(self.banks) == 0:
+                return strat
             self.run_round()
             
             # randomly devalue assets
