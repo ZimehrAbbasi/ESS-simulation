@@ -232,8 +232,18 @@ class Game:
                 
                 if defaulted == 0:
                     return strat, np.zeros(self.num_strategies)
-                    
-                percentage_defaulted = self.percentageOfStrategyDefaulted / defaulted
+                
+                percentage_defaulted = np.zeros(self.num_strategies)
+                for bank in self.banks:
+                    i = np.argmax(bank.strategy)
+                    percentage_defaulted[i] += 1
+
+                # divide index i of percentage_defaulted by index i of self.percentageOfStrategyDefaulted
+                for i in range(self.num_strategies):
+                    if self.percentageOfStrategyDefaulted[i] == 0 or percentage_defaulted[i] == 0:
+                        percentage_defaulted[i] = 0
+                    else:
+                        percentage_defaulted[i] = self.percentageOfStrategyDefaulted[i] / percentage_defaulted[i]
 
                 return strat, percentage_defaulted
             self.run_round()
