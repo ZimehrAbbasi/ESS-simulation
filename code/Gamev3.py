@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import time
 import copy
+import multiprocessing
 
 # Class definitions
 
@@ -123,6 +124,8 @@ class Game:
                 self.strategies[i] = self.strategies[i] / np.sum(self.strategies[i])
         self.num_strategies = len(self.strategies)
 
+        self.percentageOfStrategyDefaulted = np.zeros(self.num_strategies)
+
         self.strategy_space = None
 
     # initialize the game
@@ -182,10 +185,13 @@ class Game:
 
         ax = 0
 
+        total_defaulted = np.zeros(self.num_strategies)
+
         for i in range(epoch):
             print("Generation", i)
-            strat = self.epoch(ax)/epoch
-            strategy_distribution += strat
+            strat, defaulted = self.epoch(ax)
+            strategy_distribution += strat/epoch
+            total_defaulted += defaulted
 
         if self.showGraph:
             plt.ioff()
@@ -193,10 +199,11 @@ class Game:
 
         # Normalize the strategy distribution
         strategy_distribution = strategy_distribution / epoch
+        total_defaulted = total_defaulted / epoch
 
         # Print the results
         print("Game simulation finished.")
-        return strategy_distribution
+        return (strategy_distribution, total_defaulted)
 
     def epoch(self, ax):
         
@@ -204,9 +211,7 @@ class Game:
         colors = {True: 'red', False: 'green'}
 
         # Initialize the game
-        print("Initializing the game for this epoch...")
         self.initialize(self.num_banks, self.strategy_space, self.num_strategies)
-        print("Game initialization successful.")
         
         # Initialize strategy distribution
         strat = np.zeros(self.num_strategies)
@@ -220,45 +225,34 @@ class Game:
         pos = nx.random_layout(G) 
 
         # Run the game
-        print("Running the Evolutionary Game...")
         for i in range(self.num_rounds):
             if len(self.banks) == 0:
-                return strat
+
+                defaulted = len(self.defaulted_banks)
+                
+                if defaulted == 0:
+                    return strat, np.zeros(self.num_strategies)
+                    
+                percentage_defaulted = self.percentageOfStrategyDefaulted / defaulted
+
+                return strat, percentage_defaulted
             self.run_round()
             
             # randomly devalue assets
-            # if np.random.uniform(0, 1) < 1/(self.num_rounds):
-            #     print("#############################################")
-            #     print()
-            #     print("SHOCK: ASSET VALUE FALLEN BY 50%")
-            #     print()
-            #     print("#############################################")
-            #     self.randomDevalue()
             if np.random.uniform(0, 1) < 1/(self.num_rounds):
-                print("#############################################")
-                print()
-                print("SHOCK: HIGHEST ASSET VALUE FALLEN BY 50%")
-                print()
-                print("#############################################")
+                self.randomDevalue()
+            if np.random.uniform(0, 1) < 1/(self.num_rounds):
                 self.devalueHighest()
-
             if np.random.uniform(0, 1) < 1/(self.num_rounds):
-                print("#############################################")
-                print()
-                print("SHOCK: RANDOM BANK DEFAULTS")
-                print()
-                print("#############################################")
                 self.defaultRandomBank()
 
             if i % 100 == 0:
-                print("Round number", i)
 
                 if self.showGraph:
 
                     ax.clear()
 
                     for bank in self.defaulted_banks:
-                        print(bank.name, "has defaulted playing strategy ", bank.strategy)
                         G.nodes[bank.name]['attr'] = True
 
                     node_attributes = nx.get_node_attributes(G, 'attr')
@@ -292,10 +286,16 @@ class Game:
         for i in range(self.num_assets):
             self.assets.append(Asset(0.1, 2, 1, copy.deepcopy(self.asset_array[i][0]) * 100, copy.deepcopy(self.asset_array[i][1]) * 100))
 
-        print("Evolutionary Game finished for this epoch.")
         # self.print_results(strat)
 
-        return strat
+        defaulted = len(self.defaulted_banks)
+                
+        if defaulted == 0:
+            return strat, np.zeros(self.num_strategies)
+            
+        percentage_defaulted = self.percentageOfStrategyDefaulted / defaulted
+
+        return strat, percentage_defaulted
 
     # revalue an asset
     def revalue(self):
@@ -403,6 +403,8 @@ class Game:
                 self.banks[j].internal_assets_value -= col[j]
 
             sum_col = np.sum(col)
+            if sum_col == 0:
+                sum_col = 1
             col = col / sum_col * new_value
             for j in range(len(self.banks)):
                 self.banks[j].new_asset_value += col[j]
@@ -418,6 +420,9 @@ class Game:
             bank.default = True
             defaulted = True
             self.defaulted_banks.append(bank)
+            # get index of 1 in bank.strategy
+            i = np.argmax(bank.strategy)
+            self.percentageOfStrategyDefaulted[i] += 1
 
         return defaulted
 
@@ -434,6 +439,8 @@ class Game:
     
     def defaultRandomBank(self):
         # generate uniformly random number
+        if len(self.banks) == 0:
+            return
         i = np.random.randint(0, len(self.banks))
         # reduce external assets of bank by a certain percentage
         bank = self.banks[i]
@@ -517,15 +524,42 @@ if __name__ == "__main__":
     num_banks = 250
     num_assets = 5
     num_rounds = 1000
-    p = 0.1
+    num_strategies = 9
+    p = 0.9
     showGraph = False
 
-    # Initialize game
-    game = Game(num_banks, num_assets, num_rounds, asset_array, assets_means, assets_std, liabilities_means, liabilities_std, p, showGraph)
-
     EPOCHS = 10
-    GENERATIONS = 50
+
+    # Initialize 10 game
+    games = []
+    for i in range(EPOCHS):
+        games.append(Game(num_banks, num_assets, num_rounds, asset_array, assets_means, assets_std, liabilities_means, liabilities_std, p, showGraph))
+
+    GENERATIONS = 10
+
+    pool = multiprocessing.Pool()
+
     # Run game
-    game.runMultiple(GENERATIONS, EPOCHS)
+    # multiprocess each game using threading
+    results = []
+    for game in games:
+        result = pool.apply_async(game.run, args=[GENERATIONS])
+        results.append(result)
+
+    pool.close()
+    pool.join()
+
+    # get the results
+    strat = np.zeros(num_strategies)
+    strat_defaulted = np.zeros(num_strategies)
+    for result in results:
+        strat1, defaulted_percentage = result.get()
+        strat += strat1
+        strat_defaulted += defaulted_percentage
+
+    # print the results
+    game.print_results(strat/EPOCHS)
+    game.print_results(strat_defaulted/EPOCHS)
+
 
 
